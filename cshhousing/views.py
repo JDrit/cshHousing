@@ -8,7 +8,7 @@ from pkg_resources import resource_filename
 from deform_bootstrap.widget import ChosenSingleWidget
 from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 from pyramid.view import view_config
-
+from sqlalchemy.orm.exc import NoResultFound
 from .models import DBSession, Room
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
@@ -27,9 +27,20 @@ def translator(term):
     zpt_renderer = deform.ZPTRendererFactory(
                 [deform_template_dir], translator=translator)
 
-@view_config(route_name='view_delete', renderer='templates/delete.pt')
+@view_config(route_name='view_delete')
 def view_delete(request):
-    pass
+    settings = request.registry.settings
+    conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
+
+    if conn.isEBoard("jd"):
+        try:
+            DBSession.delete(DBSession.query(Room).filter_by(number = request.matchdict['room_number']).one())
+        except NoResultFound, e:
+            pass
+
+        return HTTPFound(request.route_url('view_admin'))
+    else:
+        return HTTPFound(request.route_url('view_main'))
 
 @view_config(route_name='view_admin', renderer='templates/admin.pt')
 def view_admin(request):
@@ -49,7 +60,33 @@ def view_admin(request):
             for user in conn.search(ids):
                 name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['uid'][0]
         conn.close()
-        return dict(name_map = name_map, rooms = rooms)
+
+        class New_Room(colander.Schema):
+            number = colander.SchemaNode(colander.Integer(), missing = colander.required)
+            locked = colander.SchemaNode(colander.Bool())
+
+        class New_Rooms(colander.SequenceSchema):
+            new_room = New_Room()
+
+        class Schema(colander.Schema):
+            new_rooms = New_Rooms()
+        schema = Schema()
+        form = deform.Form(schema, buttons=('submit',))
+        form['new_rooms'].widget = deform.widget.SequenceWidget(min_len=1)
+
+        if ('submit', u'submit') in request.POST.items():
+            try:
+                appstruct = form.validate(request.POST.items())
+                for new_room in appstruct['new_rooms']:
+                    room = Room(new_room['number'])
+                    room.locked = new_room['locked']
+                    DBSession.add(room)
+                DBSession.flush()
+                return HTTPFound(location=request.route_url('view_admin'))
+            except deform.ValidationFailure, e:
+                 return {'name_map': name_map, 'rooms': rooms, 'form': e.render()}
+        else:
+            return {'name_map': name_map, 'rooms': rooms, 'form': form.render()}
     else:
         conn.close()
         return HTTPFound(location=request.route_url('view_main'))

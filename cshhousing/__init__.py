@@ -22,5 +22,6 @@ def main(global_config, **settings):
     config.add_route('view_join', '/join')
     config.add_route('view_admin', '/admin')
     config.add_route('view_admin_edit', '/edit/{room_number}')
+    config.add_route('view_delete', '/delete/{room_number}')
     config.scan()
     return config.make_wsgi_app()

@@ -8,13 +8,16 @@
     <link rel="icon" href="${request.static_url('cshhousing:static/images/favicon.ico')}">
     <title>CSH Housing Board</title>
 
-    <script src="${request.static_url('cshhousing:static/scripts/jquery-1.7.1.min.js')}" type="text/javascript"></script>
-    <script src="${request.static_url('cshhousing:static/scripts/bootstrap.js')}" type="text/javascript"></script>
-    <script src="${request.static_url('cshhousing:static/scripts/jquery_chosen/chosen.jquery.js')}" type="text/javascript"></script>
-    <script src="${request.static_url('cshhousing:static/scripts/deform.js')}" type="text/javascript"></script>
-    <link href="${request.static_url('cshhousing:static/css/chosen.css')}" rel="stylesheet">
     <link href="${request.static_url('cshhousing:static/css/bootstrap.css')}" rel="stylesheet">
+    <link href="${request.static_url('cshhousing:static/css/deform_bootstrap.css')}" rel="stylesheet">
     <link href="${request.static_url('cshhousing:static/css/navbar.css')}" rel="stylesheet">
+
+    <!-- Widget requirements -->
+    <script src="${request.static_url('cshhousing:static/scripts/jquery-1.7.1.min.js')}" type="text/javascript"></script>
+    <script src="${request.static_url('cshhousing:static/scripts/deform.js')}" type="text/javascript"></script>
+    <script src="${request.static_url('cshhousing:static/scripts/deform_bootstrap.js')}" type="text/javascript"></script>
+    <script src="${request.static_url('cshhousing:static/scripts/bootstrap.js')}" type="text/javascript"></script>
+
   </head>
   <body>
     <div class="container">
@@ -48,6 +51,7 @@
 
               <ul class="nav nav-tabs">
                 <li><a href="#list" data-toggle="tab">Room List</a></li>
+                <li><a href="#add" data-toggle="tab">Add Rooms</a></li>
 		<li><a href="#log" data-toggle="tab">Logs</a></li>
 		<li><a href="#settings" data-toggle="tab">Settings</a></li>
 	      </ul>
@@ -77,9 +81,17 @@
                          <button type="button" class="btn btn-default" action="">Edit</button>
                        </a>
                      </td>
-		     <td><button type="button" class="btn btn-danger">Delete</button></td>
+                     <td>
+                       <a href="/delete/${room.number}">
+		         <button type="button" class="btn btn-danger">Delete</button>
+                       </a>
+                     </td>
 	           </tr>
                 </table>
+		</div>
+	        <div class="tab-pane" id="add">
+		  <h2>Add Room</h2>
+                  <span tal:replace="structure form"/>
 		</div>
 		<div class="tab-pane" id="log">
 		  <h2>View Logs</h2>

@@ -9,7 +9,7 @@
     <title>CSH Housing Board</title>
 
     <script src="${request.static_url('cshhousing:static/scripts/jquery-1.7.1.min.js')}" type="text/javascript"></script>
-    <script src="${request.static_url('cshhousing:static/scripts/deform_bootstrap.js')}" type="text/javascript"></script>
+    <script src="${request.static_url('cshhousing:static/scripts/bootstrap.js')}" type="text/javascript"></script>
     <script src="${request.static_url('cshhousing:static/scripts/jquery_chosen/chosen.jquery.js')}" type="text/javascript"></script>
     <script src="${request.static_url('cshhousing:static/scripts/deform.js')}" type="text/javascript"></script>
     <link href="${request.static_url('cshhousing:static/css/chosen.css')}" rel="stylesheet">
