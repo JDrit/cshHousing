@@ -1,0 +1,178 @@
+import re
+import colander
+import deform_bootstrap
+import deform
+import ldap_conn
+from docutils.core import publish_parts
+from pkg_resources import resource_filename
+from deform_bootstrap.widget import ChosenSingleWidget
+from pyramid.httpexceptions import HTTPFound, HTTPNotFound
+from pyramid.view import view_config
+
+from .models import DBSession, Room
+from pygments import highlight
+from pygments.formatters import HtmlFormatter
+from pygments.lexers import PythonLexer
+from translationstring import TranslationStringFactory
+from ldap_conn import ldap_conn
+
+_ = TranslationStringFactory('deform')
+css = HtmlFormatter().get_style_defs('.highlight')
+
+def translator(term):
+    return get_localizer(get_current_request()).translate(term)
+
+    deform_template_dir = resource_filename('deform', 'templates/')
+
+    zpt_renderer = deform.ZPTRendererFactory(
+                [deform_template_dir], translator=translator)
+
+@view_config(route_name='view_delete', renderer='templates/delete.pt')
+def view_delete(request):
+    pass
+
+@view_config(route_name='view_admin', renderer='templates/admin.pt')
+def view_admin(request):
+    settings = request.registry.settings
+    conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
+
+    if conn.isEBoard("jd"):
+        rooms = DBSession.query(Room).all()
+        name_map = dict()
+        ids = []
+        for room in rooms:
+            if room.name1 is not None:
+                ids.append(room.name1)
+            if room.name2 is not None:
+                ids.append(room.name2)
+        if not ids == []:
+            for user in conn.search(ids):
+                name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['uid'][0]
+        conn.close()
+        return dict(name_map = name_map, rooms = rooms)
+    else:
+        conn.close()
+        return HTTPFound(location=request.route_url('view_main'))
+
+@view_config(route_name='view_admin_edit', renderer='templates/edit.pt')
+def view_admin_edit(request):
+    numbers_validate = []
+    names_validate = []
+    numbers = []
+    names = []
+    settings = request.registry.settings
+    conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
+
+    if conn.isEBoard("jd"):
+
+        if ('cancel', u'cancel') in request.POST.items():
+            return HTTPFound(location=request.route_url('view_admin'))
+	    if DBSession.query(Room).filter_by(number=request.matchdict['room_number']).all() == []:
+		    return {'form': 'There is no room #' + request.matchdict['room_number']}
+
+        for element in conn.get_active():
+            names.append((element[0][1]['uidNumber'][0], element[0][1]['uid'][0]))
+            names_validate.append(element[0][1]['uidNumber'][0])
+
+        class Schema(colander.Schema):
+            name1 = colander.SchemaNode(
+		    	colander.String(),
+			    title = 'Roommate #1',
+    			widget = ChosenSingleWidget(values=names),
+	    		validator = colander.OneOf(names_validate),
+		    	missing = colander.required)
+            name2 = colander.SchemaNode(
+	    		colander.String(),
+		    	title = 'Roommate #2',
+			    widget = ChosenSingleWidget(values=names),
+    			validator = colander.OneOf(names_validate),
+	    		missing = colander.required)
+            locked = colander.SchemaNode(
+			    colander.Bool(),
+    			title = 'Locked',
+	    		widget = deform.widget.CheckboxWidget())
+
+        schema = Schema()
+        form = deform.Form(schema, buttons=('submit', 'cancel'))
+
+        if ('submit', u'submit') in request.POST.items():
+            try:
+                appstruct = form.validate(request.POST.items())
+                print request.matchdict['room_number']
+                DBSession.query(Room).filter_by(number=request.matchdict['room_number']).update({'name1': appstruct['name1'], 'name2': appstruct['name2'], 'locked': appstruct['locked']})
+                DBSession.flush()
+                return HTTPFound(location=request.route_url('view_admin'))
+            except deform.ValidationFailure, e:
+                return {'form': e.render(), 'number': request.matchdict['room_number']}
+        else:
+            return {'form': form.render(), 'number': request.matchdict['room_number']}
+
+    else: # invalid permissions
+        return HTTPFound(location=request.route_url('view_main'))
+
+
+@view_config(route_name='view_main', renderer='templates/index.pt')
+def view_main(request):
+    rooms = DBSession.query(Room).all()
+    name_map = dict()
+    ids = []
+    for room in rooms:
+        if room.name1 is not None:
+            ids.append(room.name1)
+        if room.name2 is not None:
+            ids.append(room.name2)
+    if not ids == []:
+        settings = request.registry.settings
+        conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
+        for user in conn.search(ids):
+           name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['uid'][0]
+        conn.close()
+    return dict(name_map = name_map, rooms = rooms, admin = True)
+
+@view_config(route_name='view_join', renderer='templates/join.pt')
+def view_join(request):
+    settings = request.registry.settings
+    conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
+    numbers_validate = []
+    names_validate = []
+    numbers = []
+    names = []
+
+    if ('cancel', u'cancel') in request.POST.items():
+        return HTTPFound(location=request.route_url('view_main'))
+
+    for room in DBSession.query(Room).all():
+        numbers_validate.append(room.number)
+        numbers.append((room.number, room.number))
+    for element in conn.get_active():
+        names.append((element[0][1]['uidNumber'][0], element[0][1]['uid'][0]))
+        names_validate.append(element[0][1]['uidNumber'][0])
+
+    class Schema(colander.Schema):
+        roomNumber = colander.SchemaNode(
+                colander.Integer(),
+                title='Room number',
+                widget=ChosenSingleWidget(values=numbers),
+                validator= colander.OneOf(numbers_validate),
+                missing=colander.required)
+        partnerName = colander.SchemaNode(
+                colander.String(),
+                title='Roommate\' name',
+                widget=ChosenSingleWidget(values=names),
+                validator=colander.OneOf(names_validate),
+                missing=colander.required)
+
+    schema = Schema()
+    form = deform.Form(schema, buttons=('submit', 'cancel'))
+
+    if  ('submit', u'submit') in request.POST.items():
+        try:
+            appstruct = form.validate(request.POST.items())
+            room = Room(appstruct['roomNumber'])
+            DBSession.query(Room).filter_by(number=appstruct['roomNumber']).update({"name1": appstruct['partnerName']})
+            DBSession.flush()
+            return {'form': 'Successfully added to room ' + str(appstruct['roomNumber'])}
+        except deform.ValidationFailure, e:
+            return {'form': e.render()}
+    else:
+       return {'form': form.render()}

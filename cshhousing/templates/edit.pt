@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="CSH Housing Board">
+    <meta name="author" content="JD">
+    <link rel="icon" href="${request.static_url('cshhousing:static/images/favicon.ico')}">
+    <title>CSH Housing Board</title>
+
+    <script src="${request.static_url('cshhousing:static/scripts/jquery-1.7.1.min.js')}" type="text/javascript"></script>
+    <script src="${request.static_url('cshhousing:static/scripts/deform_bootstrap.js')}" type="text/javascript"></script>
+    <script src="${request.static_url('cshhousing:static/scripts/jquery_chosen/chosen.jquery.js')}" type="text/javascript"></script>
+    <script src="${request.static_url('cshhousing:static/scripts/deform.js')}" type="text/javascript"></script>
+    <link href="${request.static_url('cshhousing:static/css/chosen.css')}" rel="stylesheet">
+    <link href="${request.static_url('cshhousing:static/css/bootstrap.css')}" rel="stylesheet">
+    <link href="${request.static_url('cshhousing:static/css/navbar.css')}" rel="stylesheet">
+  </head>
+  <body>
+    <div class="container">
+
+      <!-- Static navbar -->
+      <div class="navbar">
+        <div class="container">
+          <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="/">CSH Housing Board</a>
+          <div class="nav-collapse collapse">
+            <ul class="nav navbar-nav">
+              <li><a href="/">Home</a></li>
+              <li><a href="/join">Join Room</a></li>
+              <li><a href="/leave">Leave Room</a></li>
+            </ul>
+            <ul class="nav navbar-nav pull-right">
+              <li class="active"><a href="/admin">Admin</a></li>
+            </ul>
+          </div><!--/.nav-collapse -->
+        </div>
+      </div>
+
+      <!-- Main component for a primary marketing message or call to action -->
+      <div class="jumbotron">
+      
+	  <div id="container">
+	    <h1>Edit Room #${number}</h1>
+              <span tal:replace="structure form"/>
+          </div>
+	<br />
+      </div>
+
+    </div> <!-- /container -->
+
+  </body>
+</html>
