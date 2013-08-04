@@ -2,7 +2,7 @@ from sqlalchemy import (
     Column,
     Integer,
     Text,
-    Boolean,
+    Boolean
     )
 
 from sqlalchemy.ext.declarative import declarative_base
@@ -28,6 +28,22 @@ class Room(Base):
 
     def __init__(self, number):
         self.number = number
+
+    def __str__(self):
+        return str(self.number) + ", " + str(self.name1) + ", " + str(self.name2)
+
+class User(Base):
+    __tablename__ = 'users'
+    name = Column(Integer, primary_key = True)
+    number = Column(Integer)
+
+    def __init__(self, name, number):
+        self.name = name
+        self.number = number
+
+    def __str__(self):
+        return str(self.name) + ", " + str(self.number)
+
 
 ''''
 class Page(Base):

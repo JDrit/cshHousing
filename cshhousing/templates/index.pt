@@ -28,7 +28,7 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </button>
-          <a class="navbar-brand" href="#">CSH Housing Board</a>
+          <a class="navbar-brand" href="#">Housing Board</a>
           <div class="nav-collapse collapse">
             <ul class="nav navbar-nav">
               <li class="active"><a href="/">Home</a></li>
@@ -44,7 +44,7 @@
 
       <!-- Main component for a primary marketing message or call to action -->
       <div class="jumbotron">
-        <h1>CSH Housing Board</h1>
+        <h1><img src="${request.static_url('cshhousing:static/images/logo.png')}"/> Housing Board</h1>
 	  <table class="table table-hover table-striped">
             <tr>
 	      <td>Room Number:</td>
@@ -55,9 +55,9 @@
             </tr>
 	      <tr tal:repeat="room rooms" tal:attributes="class 'warning' if room.locked else None">
 		<td>${room.number}</td>
-                <?python name1 = name_map[room.name1] if room.name1 in name_map else ""?>
+                <?python name1 = name_map[room.name1] if room.name1 in name_map else room.name1?>
 		<td>${name1}</td>
-		<?python name2 = name_map[room.name2] if room.name2 in name_map else ""?>
+		<?python name2 = name_map[room.name2] if room.name2 in name_map else room.name2?>
 		<td>${name2}</td>
 		<td>${room.points}</td>
 		<td>${room.locked}</td>

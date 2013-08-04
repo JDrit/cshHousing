@@ -13,10 +13,13 @@ class ldap_conn:
     def search(self, uids):
         data = []
         scope = ldap.SCOPE_SUBTREE
-        search_filter = '(|'
-        for uid in uids:
-            search_filter += '(uidNumber=' + str(uid) + ')'
-        search_filter += ')'
+        if len(uids) == 1:
+            search_filter = '(uidNumber=' + str(uids[0]) + ')'
+        else:
+            search_filter = '(|'
+            for uid in uids:
+                search_filter += '(uidNumber=' + str(uid) + ')'
+            search_filter += ')'
         result_id = self.conn.search(self.base_dn, scope, search_filter, None)
         result_type, result_data = self.conn.result(result_id, 0)
         while True:
