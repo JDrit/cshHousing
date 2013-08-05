@@ -73,9 +73,9 @@
 	           </tr>
 	           <tr tal:repeat="room rooms">
 		     <td>${room.number}</td>
-		     <?python name1 = name_map[room.name1] if room.name1 in name_map else ""?>
+		     <?python name1 = name_map[room.name1] if room.name1 in name_map else room.name1?>
 		     <td>${name1}</td>
-		     <?python name2 = name_map[room.name2] if room.name2 in name_map else ""?>
+		     <?python name2 = name_map[room.name2] if room.name2 in name_map else room.name2?>
 		     <td>${name2}</td>
 		     <td>${room.points}</td>
 		     <td>${room.locked}</td>
@@ -107,7 +107,7 @@
 		      <td></td>
                     </tr>
                     <tr tal:repeat="user users">
-		      <?python user_name = name_map.get(user.name)?>
+		      <?python user_name = name_map[user.name] if user.name in name_map else user.name?>
                       <td>${user_name}</td>
                       <td>${user.number}</td>
                       <?python points = points_map.get(user.name)?>

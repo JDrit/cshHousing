@@ -83,7 +83,7 @@ def view_admin(request):
         for user in users:
             ids.add(user.name)
         if not ids == set():
-            for user in conn.search(list(ids)):
+            for user in conn.search_uids(list(ids)):
                 name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['uid'][0]
                 points_map[int(user[0][1]['uidNumber'][0])] = 5 #user[0][1]['housingPoints'][0]
 
@@ -219,23 +219,31 @@ def view_admin_edit(request):
 
 @view_config(route_name='view_main', renderer='templates/index.pt')
 def view_main(request):
+    settings = request.registry.settings
+    conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
     rooms = DBSession.query(Room).all()
     name_map = dict()
     ids = []
+    next_room = None
+    uid_number = conn.get_uid_number("jd")
     for room in rooms:
+        print room.name1
+        if room.name1 == uid_number:
+            next_room = room.name1
+        elif room.name2 == uid_number:
+            next_room = room.name2
         if room.name1 is not None:
             ids.append(room.name1)
         if room.name2 is not None:
             ids.append(room.name2)
     if not ids == []:
-        settings = request.registry.settings
-        conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
-        for user in conn.search(ids):
-            print user
-            print '\n'
+        for user in conn.search_uids(ids):
             name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['uid'][0]
-        conn.close()
-    return dict(name_map = name_map, rooms = rooms, admin = True)
+    try:
+        current_room = DBSession.query(User).filter_by(name=conn.get_uid_number("jd")).one().number
+    except NoResultFound, e:
+        current_room = None
+    return {'name_map': name_map, 'rooms': rooms, 'admin': True, 'points': conn.get_points("jd"), 'current':  current_room, 'next_room': next_room}
 
 @view_config(route_name='view_join', renderer='templates/join.pt')
 def view_join(request):
@@ -245,7 +253,6 @@ def view_join(request):
     names_validate = []
     numbers = []
     names = []
-
     if ('cancel', u'cancel') in request.POST.items():
         return HTTPFound(location=request.route_url('view_main'))
 

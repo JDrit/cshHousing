@@ -45,6 +45,15 @@
       <!-- Main component for a primary marketing message or call to action -->
       <div class="jumbotron">
         <h1><img src="${request.static_url('cshhousing:static/images/logo.png')}"/> Housing Board</h1>
+	  <br />
+          <div class="panel">
+            <div class="panel-heading"><h3 class="panel-title">User's Stats</h3></div>
+            <h4>Points: ${points}</h4>
+	    <h4 tal:condition="current is not None">Current Room: ${current}</h4>
+	    <h4 tal:condition="next_room is not None">Next Year's Room: ${next_room}<div class="pull-right"><button type="button" class="btn btn-danger">Leave Room</button></div></h4>
+          </div>
+
+	  <br />
 	  <table class="table table-hover table-striped">
             <tr>
 	      <td>Room Number:</td>
