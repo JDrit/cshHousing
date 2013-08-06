@@ -9,6 +9,7 @@ from deform_bootstrap.widget import ChosenSingleWidget
 from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 from pyramid.view import view_config
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy import or_, and_
 from .models import DBSession, Room, User
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
@@ -167,6 +168,7 @@ def view_admin_edit(request):
     names_validate = []
     numbers = []
     names = []
+    empty = 'empty'
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
 
@@ -174,9 +176,12 @@ def view_admin_edit(request):
 
         if ('cancel', u'cancel') in request.POST.items():
             return HTTPFound(location=request.route_url('view_admin'))
-	    if DBSession.query(Room).filter_by(number=request.matchdict['room_number']).all() == []:
+        room = DBSession.query(Room).filter_by(number=request.matchdict['room_number']).all()
+        if room == []:
 		    return {'form': 'There is no room #' + request.matchdict['room_number']}
 
+        names.append((empty, '- Empty -'))
+        names_validate.append(empty)
         for element in conn.get_active():
             names.append((element[0][1]['uidNumber'][0], element[0][1]['uid'][0]))
             names_validate.append(element[0][1]['uidNumber'][0])
@@ -187,17 +192,18 @@ def view_admin_edit(request):
 			    title = 'Roommate #1',
     			widget = ChosenSingleWidget(values=names),
 	    		validator = colander.OneOf(names_validate),
-		    	missing = colander.required)
+                default = room[0].name1 or empty)
             name2 = colander.SchemaNode(
 	    		colander.String(),
 		    	title = 'Roommate #2',
 			    widget = ChosenSingleWidget(values=names),
     			validator = colander.OneOf(names_validate),
-	    		missing = colander.required)
+                default = room[0].name2)
             locked = colander.SchemaNode(
 			    colander.Bool(),
     			title = 'Locked',
-	    		widget = deform.widget.CheckboxWidget())
+	    		widget = deform.widget.CheckboxWidget(),
+                default = room[0].name2 or empty)
 
         schema = Schema()
         form = deform.Form(schema, buttons=('submit', 'cancel'))
@@ -205,7 +211,9 @@ def view_admin_edit(request):
         if ('submit', u'submit') in request.POST.items():
             try:
                 appstruct = form.validate(request.POST.items())
-                DBSession.query(Room).filter_by(number=request.matchdict['room_number']).update({'name1': appstruct['name1'], 'name2': appstruct['name2'], 'locked': appstruct['locked']})
+                name1 = appstruct['name1'] if not appstruct['name1'] == empty else None
+                name2 = appstruct['name2'] if not appstruct['name2'] == empty else None
+                DBSession.query(Room).filter_by(number=request.matchdict['room_number']).update({'name1': name1, 'name2': name2, 'locked': appstruct['locked']})
                 DBSession.flush()
                 return HTTPFound(location=request.route_url('view_admin'))
             except deform.ValidationFailure, e:
@@ -216,6 +224,23 @@ def view_admin_edit(request):
     else: # invalid permissions
         return HTTPFound(location=request.route_url('view_main'))
 
+@view_config(route_name='view_leave')
+def view_leave(request):
+    settings = request.registry.settings
+    conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
+    uid_number = conn.get_uid_number("jd")
+    if uid_number == None:
+        return HTTPFound(location=request.route_url('view_main'))
+    else:
+        room = DBSession.query(Room).filter(or_(Room.name1 == uid_number, Room.name2 == uid_number)).first()
+        if not room == None:
+            if room.name1 == uid_number:
+                room.name1 = None
+            else:
+                room.name2 = None
+            DBSession.add(room)
+            DBSession.flush()
+        return HTTPFound(location=request.route_url('view_main'))
 
 @view_config(route_name='view_main', renderer='templates/index.pt')
 def view_main(request):
@@ -228,10 +253,8 @@ def view_main(request):
     uid_number = conn.get_uid_number("jd")
     for room in rooms:
         print room.name1
-        if room.name1 == uid_number:
-            next_room = room.name1
-        elif room.name2 == uid_number:
-            next_room = room.name2
+        if room.name1 == uid_number or room.name2 == uid_number:
+            next_room = room.number
         if room.name1 is not None:
             ids.append(room.name1)
         if room.name2 is not None:
@@ -243,7 +266,7 @@ def view_main(request):
         current_room = DBSession.query(User).filter_by(name=conn.get_uid_number("jd")).one().number
     except NoResultFound, e:
         current_room = None
-    return {'name_map': name_map, 'rooms': rooms, 'admin': True, 'points': conn.get_points("jd"), 'current':  current_room, 'next_room': next_room}
+    return {'name_map': name_map, 'rooms': rooms, 'admin': True, 'points': conn.get_points_uid("jd"), 'current':  current_room, 'next_room': next_room}
 
 @view_config(route_name='view_join', renderer='templates/join.pt')
 def view_join(request):
@@ -253,9 +276,11 @@ def view_join(request):
     names_validate = []
     numbers = []
     names = []
+    none = 'none'
+    names.append((none, '- None -'))
+    names_validate.append(none)
     if ('cancel', u'cancel') in request.POST.items():
         return HTTPFound(location=request.route_url('view_main'))
-
     for room in DBSession.query(Room).all():
         if not room.locked:
             numbers_validate.append(room.number)
@@ -276,7 +301,8 @@ def view_join(request):
                 title='Roommate\' name',
                 widget=ChosenSingleWidget(values=names),
                 validator=colander.OneOf(names_validate),
-                missing=colander.required)
+                missing=colander.required,
+                default = none)
 
     schema = Schema()
     form = deform.Form(schema, buttons=('submit', 'cancel'))
@@ -285,11 +311,29 @@ def view_join(request):
         try:
             appstruct = form.validate(request.POST.items())
             room = Room(appstruct['roomNumber'])
-            if DBSession.query(Room).filter_by(number=appstruct['roomNumber']).one().locked:
+            room = DBSession.query(Room).filter_by(number=appstruct['roomNumber']).first()
+            if room.locked:
                 return {'form': 'Room is locked'}
             else:
-                DBSession.query(Room).filter_by(number=appstruct['roomNumber']).update({"name1": appstruct['partnerName']})
-                DBSession.flush()
+                test_points = 0
+                points = []
+                if not appstruct['partnerName'] == none:
+                    points.append(appstruct['partnerName'])
+                points.append(10387) # the current user's uidNumber
+                results = conn.get_points_uidNumbers(points)
+
+                test_points += results.get(appstruct['partnerName']) or 0
+                test_points += results.get(10387) or 0
+                # squatting points
+                if not DBSession.query(User).filter(or_(and_(User.name == appstruct['partnerName'], User.number == appstruct['roomNumber']), and_(User.name == 10387, User.number == appstruct['roomNumber']))).first() == None:
+                    print 'SQUATTING POINTS'
+                    test_points += .5
+
+                if room.points < test_points: # if new people beat out current ocupents
+                    DBSession.query(Room).filter_by(number=appstruct['roomNumber']).update({"name1": appstruct['partnerName'] if not appstruct['partnerName'] == none else None, "name2": "jd", "points": test_points})
+                    DBSession.flush()
+                else:
+                    return HTTPFound(location=request.route_url('view_admin'))
 
             return {'form': 'Successfully added to room ' + str(appstruct['roomNumber'])}
         except deform.ValidationFailure, e:

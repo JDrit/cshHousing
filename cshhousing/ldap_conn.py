@@ -40,8 +40,14 @@ class ldap_conn:
     def isEBoard(self, uid):
         return True
 
-    def get_points(self, uid):
-        return 2
+    def get_points_uid(self, uid):
+            return 2
+
+    def get_points_uidNumbers(self, uids):
+        dic = {}
+        for uid in uids:
+            dic[uid] = 2
+        return dic
 
     def get_uid_number(self, username):
         data = []
