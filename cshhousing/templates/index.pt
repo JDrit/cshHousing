@@ -8,12 +8,11 @@
     <link rel="icon" href="${request.static_url('cshhousing:static/images/favicon.ico')}">
     <title>CSH Housing Board</title>
 
-    <!-- Bootstrap core CSS -->
-
     <link href="${request.static_url('cshhousing:static/css/bootstrap.css')}" rel="stylesheet">
-
-    <!-- Custom styles for this template -->
     <link href="${request.static_url('cshhousing:static/css/navbar.css')}" rel="stylesheet">
+
+    <script src="${request.static_url('cshhousing:static/scripts/jquery-1.7.1.min.js')}" type="text/javascript"></script>
+    <script src="${request.static_url('cshhousing:static/scripts/bootstrap.js')}" type="text/javascript"></script>
   </head>
 
   <body>
@@ -46,6 +45,13 @@
       <div class="jumbotron">
         <h1><img src="${request.static_url('cshhousing:static/images/logo.png')}"/> Housing Board</h1>
 	  <br />
+	  <div tal:repeat="msg msgs">
+	      <?python type = "alert-danger" if msg.lower().startswith("warning") else "alert-info" ?>
+            <div class="alert ${type}">
+	      <button type="button" class="close" data-dismiss="alert">&times;</button>
+	      <strong>${msg}</strong>
+	    </div>
+          </div>
           <div class="panel">
             <div class="panel-heading"><h3 class="panel-title">User's Stats</h3></div>
             <h4>Housing Points: ${points}</h4>
@@ -53,7 +59,6 @@
 	    <h4 tal:condition="next_room is not None">Next Year's Room: ${next_room}<div class="pull-right"><a href="/leave"><button type="button" class="btn btn-danger">Leave Room</button></a></div></h4>
           </div>
 
-	  <br />
 	  <table class="table table-hover table-striped">
             <tr>
 	      <td>Room Number:</td>

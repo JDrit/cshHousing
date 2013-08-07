@@ -36,8 +36,9 @@ def view_delete(request):
     if conn.isEBoard("jd"):
         try:
             DBSession.delete(DBSession.query(Room).filter_by(number = request.matchdict['room_number']).one())
+            request.session.flash("Successfully deleted room")
         except NoResultFound, e:
-            pass
+            request.session.flash("Warning: Could not delete room")
 
         return HTTPFound(request.route_url('view_admin'))
     else:
@@ -51,7 +52,9 @@ def view_delete_current(request):
     if conn.isEBoard("jd"):
         try:
             DBSession.delete(DBSession.query(User).filter_by(name = request.matchdict['name']).one())
+            request.session.flash("Successfully deleated current room assignment")
         except NoResultFound, e:
+            request.session.flash("Warning: could not delete current room assignment")
             pass
 
         return HTTPFound(request.route_url('view_admin'))
@@ -132,7 +135,7 @@ def view_admin(request):
         form['new_rooms'].widget = deform.widget.SequenceWidget(min_len=1)
         current_rooms_schema = Current_Rooms_Schema()
         current_rooms_form = deform.Form(current_rooms_schema, buttons=('submit',))
-
+        msgs = request.session.pop_flash()
         # new room was given
         if ('__start__', u'new_rooms:sequence') in request.POST.items():
             try:
@@ -142,9 +145,13 @@ def view_admin(request):
                     room.locked = new_room['locked']
                     DBSession.add(room)
                 DBSession.flush()
-                return HTTPFound(location=request.route_url('view_admin'))
+                if len(appstruct['new_rooms']) > 1:
+                    msgs.append('Successfully added ' + str(len(appstruct['new_rooms'])) + ' new rooms')
+                else:
+                    msgs.append('Successfully added ' + str(len(appstruct['new_rooms'])) + ' new room')
             except deform.ValidationFailure, e:
-                return {'name_map': name_map, 'rooms': rooms, 'form': e.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': current_rooms_form.render()}
+                msgs.append('Warning: counld not added new rooms')
+                return {'name_map': name_map, 'rooms': rooms, 'form': e.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': current_rooms_form.render(), 'msgs': msgs}
 
         # current room was given
         elif ('__start__', u'current_rooms:sequence') in request.POST.items():
@@ -155,9 +162,11 @@ def view_admin(request):
                         DBSession.add(User(current_room['name'], current_room['number']))
                 DBSession.flush()
                 users = DBSession.query(User).all()
+                msgs.append('Successfully added current room')
             except deform.ValidationFailure, e:
-                return {'name_map': name_map, 'rooms': rooms, 'form': form.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': e.render()}
-        return {'name_map': name_map, 'rooms': rooms, 'form': form.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': current_rooms_form.render()}
+                msgs.append('Warning: Could not add current room assignment')
+                return {'name_map': name_map, 'rooms': rooms, 'form': form.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': e.render(), 'msgs': msgs}
+        return {'name_map': name_map, 'rooms': rooms, 'form': form.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': current_rooms_form.render(), 'msgs': msgs}
     else:
         conn.close()
         return HTTPFound(location=request.route_url('view_main'))
@@ -185,7 +194,7 @@ def view_admin_edit(request):
         for element in conn.get_active():
             names.append((element[0][1]['uidNumber'][0], element[0][1]['uid'][0]))
             names_validate.append(element[0][1]['uidNumber'][0])
-
+        print '\n', room[0].name2, '\n'
         class Schema(colander.Schema):
             name1 = colander.SchemaNode(
 		    	colander.String(),
@@ -215,6 +224,7 @@ def view_admin_edit(request):
                 name2 = appstruct['name2'] if not appstruct['name2'] == empty else None
                 DBSession.query(Room).filter_by(number=request.matchdict['room_number']).update({'name1': name1, 'name2': name2, 'locked': appstruct['locked']})
                 DBSession.flush()
+                request.session.flash("Successfully updated room")
                 return HTTPFound(location=request.route_url('view_admin'))
             except deform.ValidationFailure, e:
                 return {'form': e.render(), 'number': request.matchdict['room_number']}
@@ -240,10 +250,13 @@ def view_leave(request):
                 room.name2 = None
             DBSession.add(room)
             DBSession.flush()
+        request.session.flash("Successfully left room")
         return HTTPFound(location=request.route_url('view_main'))
 
 @view_config(route_name='view_main', renderer='templates/index.pt')
 def view_main(request):
+    session = request.session
+    msgs = session.pop_flash()
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
     rooms = DBSession.query(Room).all()
@@ -252,7 +265,6 @@ def view_main(request):
     next_room = None
     uid_number = conn.get_uid_number("jd")
     for room in rooms:
-        print room.name1
         if room.name1 == uid_number or room.name2 == uid_number:
             next_room = room.number
         if room.name1 is not None:
@@ -262,11 +274,9 @@ def view_main(request):
     if not ids == []:
         for user in conn.search_uids(ids):
             name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['uid'][0]
-    try:
-        current_room = DBSession.query(User).filter_by(name=conn.get_uid_number("jd")).one().number
-    except NoResultFound, e:
-        current_room = None
-    return {'name_map': name_map, 'rooms': rooms, 'admin': True, 'points': conn.get_points_uid("jd"), 'current':  current_room, 'next_room': next_room}
+    current_room = DBSession.query(User).filter_by(name=conn.get_uid_number("jd")).first()
+    current_room = current_room.number or None
+    return {'name_map': name_map, 'rooms': rooms, 'admin': True, 'points': conn.get_points_uid("jd"), 'current':  current_room, 'next_room': next_room, 'msgs': msgs}
 
 @view_config(route_name='view_join', renderer='templates/join.pt')
 def view_join(request):
@@ -279,12 +289,25 @@ def view_join(request):
     none = 'none'
     names.append((none, '- None -'))
     names_validate.append(none)
+    current_room = None
     if ('cancel', u'cancel') in request.POST.items():
         return HTTPFound(location=request.route_url('view_main'))
+
+    uidNumber = conn.get_uid_number("jd")
     for room in DBSession.query(Room).all():
         if not room.locked:
             numbers_validate.append(room.number)
             numbers.append((room.number, room.number))
+        if room.name1 == uidNumber: # can't join room if already in one
+            current_room = room.name1
+        if room.name2 == uidNumber:
+            current_room = room.name2
+
+    if not current_room == None:
+        request.session.flash('Warning: You are already in room ' + str(current_room) + '. Leave that room before joining another')
+        return HTTPFound(location=request.route_url('view_main'))
+
+
     for element in conn.get_active():
         names.append((element[0][1]['uidNumber'][0], element[0][1]['uid'][0]))
         names_validate.append(element[0][1]['uidNumber'][0])
@@ -314,6 +337,9 @@ def view_join(request):
             room = DBSession.query(Room).filter_by(number=appstruct['roomNumber']).first()
             if room.locked:
                 return {'form': 'Room is locked'}
+            elif not current_room == None: # do not allow users who are already registered
+                request.session.flash('Warning: You are already in room ' + str(current_room) + '. Leave that room before joining another')
+                return HTTPFound(location=request.route_url('view_main'))
             else:
                 test_points = 0
                 points = []
@@ -326,16 +352,16 @@ def view_join(request):
                 test_points += results.get(10387) or 0
                 # squatting points
                 if not DBSession.query(User).filter(or_(and_(User.name == appstruct['partnerName'], User.number == appstruct['roomNumber']), and_(User.name == 10387, User.number == appstruct['roomNumber']))).first() == None:
-                    print 'SQUATTING POINTS'
                     test_points += .5
 
                 if room.points < test_points: # if new people beat out current ocupents
-                    DBSession.query(Room).filter_by(number=appstruct['roomNumber']).update({"name1": appstruct['partnerName'] if not appstruct['partnerName'] == none else None, "name2": "jd", "points": test_points})
+                    DBSession.query(Room).filter_by(number=appstruct['roomNumber']).update({"name1": int(appstruct['partnerName']) if not appstruct['partnerName'] == none else None, "name2": 10387, "points": test_points})
                     DBSession.flush()
                 else:
-                    return HTTPFound(location=request.route_url('view_admin'))
-
-            return {'form': 'Successfully added to room ' + str(appstruct['roomNumber'])}
+                    request.session.flash('Warning: You do not have enough housing points')
+                    return HTTPFound(location=request.route_url('view_main'))
+            request.session.flash('Successfully joined room ' + str(appstruct['roomNumber']))
+            return HTTPFound(location=request.route_url('view_main'))
         except deform.ValidationFailure, e:
             return {'form': e.render()}
     else:
