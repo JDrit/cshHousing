@@ -238,7 +238,9 @@ def view_admin_edit(request):
 def view_leave(request):
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
-    uid_number = conn.get_uid_number("jd")
+    result = conn.search("uid=jd")[0][0][1]
+    uid_number = int(result['uidNumber'][0])
+    points = 2 #int(result['housingPoints'][0])
     if uid_number == None:
         return HTTPFound(location=request.route_url('view_main'))
     else:
@@ -248,9 +250,12 @@ def view_leave(request):
                 room.name1 = None
             else:
                 room.name2 = None
+            room.points -= points
             DBSession.add(room)
             DBSession.flush()
-        request.session.flash("Successfully left room")
+            request.session.flash("Successfully left room")
+        else:
+            request.session.flash('You are not currently in a room')
         return HTTPFound(location=request.route_url('view_main'))
 
 @view_config(route_name='view_main', renderer='templates/index.pt')
