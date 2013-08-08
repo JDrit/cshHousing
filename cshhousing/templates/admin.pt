@@ -132,6 +132,17 @@
 		</div>
 		<div class="tab-pane" id="settings">
 		  <h2>Settings</h2>
+		  <br />
+                  <div class="row">
+		    <div class="col-lg-3">
+		    <a href="/close">
+		      <?python button_text = "Lock" if not locked else "Unlock" ?>
+		      <?python button_desc = "This will lock the site to stop users from signing up for rooms" if not locked else "This will unlock the site to allow users to start signing up for rooms" ?>
+		      <button type="button" class="btn btn-primary btn-lg">${button_text}</button>
+                    </a>
+			</div>
+<div class="col-lg-9">
+		      <h3>${button_desc}</h3></div></div>
 		</div>
               </div>
  	      <script>

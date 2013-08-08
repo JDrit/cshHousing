@@ -20,6 +20,8 @@ from ldap_conn import ldap_conn
 _ = TranslationStringFactory('deform')
 css = HtmlFormatter().get_style_defs('.highlight')
 
+siteClosed = False
+
 def translator(term):
     return get_localizer(get_current_request()).translate(term)
 
@@ -27,6 +29,10 @@ def translator(term):
 
     zpt_renderer = deform.ZPTRendererFactory(
                 [deform_template_dir], translator=translator)
+
+@view_config(context=HTTPNotFound, renderer='templates/404.pt')
+def view_404(request):
+    return {}
 
 @view_config(route_name='view_delete')
 def view_delete(request):
@@ -36,7 +42,7 @@ def view_delete(request):
     if conn.isEBoard("jd"):
         try:
             DBSession.delete(DBSession.query(Room).filter_by(number = request.matchdict['room_number']).one())
-            request.session.flash("Successfully deleted room")
+            request.session.flash("Successfully deleted room #" + str(request.matchdict['room_number']))
         except NoResultFound, e:
             request.session.flash("Warning: Could not delete room")
 
@@ -61,9 +67,25 @@ def view_delete_current(request):
     else:
         return HTTPFound(request.route_url('view_main'))
 
+@view_config(route_name='view_close')
+def view_close(request):
+    settings = request.registry.settings
+    conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
+    global siteClosed
+    if conn.isEBoard("jd"):
+        siteClosed = not siteClosed
+        if siteClosed:
+            request.session.flash("Site is now closed")
+        else:
+            request.session.flash("Site is now open")
+        return HTTPFound(request.route_url('view_admin'))
+    else:
+        return HTTPFound(request.route_url('view_main'))
+
 
 @view_config(route_name='view_admin', renderer='templates/admin.pt')
 def view_admin(request):
+    global siteClosed
     numbers_validate = []
     names_validate = []
     numbers = []
@@ -97,8 +119,14 @@ def view_admin(request):
 
         conn.close()
 
+        def notIn(value):
+            for room in rooms:
+                if value == room.number:
+                    return False
+            return True
+
         class New_Room(colander.Schema):
-            number = colander.SchemaNode(colander.Integer(), missing = colander.required)
+            number = colander.SchemaNode(colander.Integer(), missing = colander.required, validator = colander.Function(notIn))
             locked = colander.SchemaNode(colander.Bool())
 
         class New_Rooms(colander.SequenceSchema):
@@ -144,14 +172,15 @@ def view_admin(request):
                     room = Room(new_room['number'])
                     room.locked = new_room['locked']
                     DBSession.add(room)
+                    print room
                 DBSession.flush()
                 if len(appstruct['new_rooms']) > 1:
                     msgs.append('Successfully added ' + str(len(appstruct['new_rooms'])) + ' new rooms')
                 else:
                     msgs.append('Successfully added ' + str(len(appstruct['new_rooms'])) + ' new room')
             except deform.ValidationFailure, e:
-                msgs.append('Warning: counld not added new rooms')
-                return {'name_map': name_map, 'rooms': rooms, 'form': e.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': current_rooms_form.render(), 'msgs': msgs}
+                msgs.append('Warning: could not added new rooms')
+                return {'name_map': name_map, 'rooms': rooms, 'form': e.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': current_rooms_form.render(), 'msgs': msgs, 'locked': siteClosed}
 
         # current room was given
         elif ('__start__', u'current_rooms:sequence') in request.POST.items():
@@ -165,8 +194,8 @@ def view_admin(request):
                 msgs.append('Successfully added current room')
             except deform.ValidationFailure, e:
                 msgs.append('Warning: Could not add current room assignment')
-                return {'name_map': name_map, 'rooms': rooms, 'form': form.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': e.render(), 'msgs': msgs}
-        return {'name_map': name_map, 'rooms': rooms, 'form': form.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': current_rooms_form.render(), 'msgs': msgs}
+                return {'name_map': name_map, 'rooms': rooms, 'form': form.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': e.render(), 'msgs': msgs, 'locked': siteClosed}
+        return {'name_map': name_map, 'rooms': rooms, 'form': form.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': current_rooms_form.render(), 'msgs': msgs, 'locked': siteClosed}
     else:
         conn.close()
         return HTTPFound(location=request.route_url('view_main'))
@@ -187,7 +216,8 @@ def view_admin_edit(request):
             return HTTPFound(location=request.route_url('view_admin'))
         room = DBSession.query(Room).filter_by(number=request.matchdict['room_number']).all()
         if room == []:
-		    return {'form': 'There is no room #' + request.matchdict['room_number']}
+            request.session.flash("Warning: Invalid room number")
+            return HTTPFound(location=request.route_url('view_admin'))
 
         names.append((empty, '- Empty -'))
         names_validate.append(empty)
@@ -243,6 +273,14 @@ def view_admin_edit(request):
 
 @view_config(route_name='view_leave')
 def view_leave(request):
+    """
+    Checks to see if the user is in a room, and if they are, removes the user and
+    recalcuates the points for the given room
+    """
+    global siteClosed
+    if siteClosed:
+        return HTTPFound(location = request.route_url('view_main'))
+
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
     result = conn.search("uid=jd")[0][0][1]
@@ -255,18 +293,25 @@ def view_leave(request):
         if not room == None:
             if room.name1 == uid_number:
                 room.name1 = None
+
             else:
                 room.name2 = None
-            room.points -= points
+
+            # recalculates the points for the given room
+            room.points = sum(conn.get_points_uidNumbers([room.name1, room.name2]).values())
+            if not DBSession.query(User).filter(or_(and_(User.name == room.name1, User.number == room.number), and_(User.name == room.name2, User.number == room.number))).first() == None:
+                room.points += .5
+
             DBSession.add(room)
             DBSession.flush()
-            request.session.flash("Successfully left room")
+            request.session.flash("Successfully left room #" + str(room.number))
         else:
             request.session.flash('You are not currently in a room')
         return HTTPFound(location=request.route_url('view_main'))
 
 @view_config(route_name='view_main', renderer='templates/index.pt')
 def view_main(request):
+    global siteClosed
     session = request.session
     msgs = session.pop_flash()
     settings = request.registry.settings
@@ -288,12 +333,11 @@ def view_main(request):
             name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['uid'][0]
     current_room = DBSession.query(User).filter_by(name=conn.get_uid_number("jd")).first()
     current_room = current_room.number or None
-    return {'name_map': name_map, 'rooms': rooms, 'admin': True, 'points': conn.get_points_uid("jd"), 'current':  current_room, 'next_room': next_room, 'msgs': msgs}
+    return {'name_map': name_map, 'rooms': rooms, 'admin': True, 'points': conn.get_points_uid("jd"), 'current':  current_room, 'next_room': next_room, 'msgs': msgs, 'locked': siteClosed}
 
 @view_config(route_name='view_join', renderer='templates/join.pt')
 def view_join(request):
-    settings = request.registry.settings
-    conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
+    global siteClosed
     numbers_validate = []
     names_validate = []
     numbers = []
@@ -303,11 +347,19 @@ def view_join(request):
     names_validate.append(none)
     current_room = None # the current room for the user
     current_room_rm = None # the current room for the roommate
+
+    if siteClosed:
+        return HTTPFound(location=request.route_url('view_main'))
+
     if ('cancel', u'cancel') in request.POST.items():
         return HTTPFound(location=request.route_url('view_main'))
 
+    settings = request.registry.settings
+    conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
+
     uidNumber = conn.get_uid_number("jd")
     for room in DBSession.query(Room).all():
+        print room
         if not room.locked:
             numbers_validate.append(room.number)
             numbers.append((room.number, room.number))
@@ -368,7 +420,6 @@ def view_join(request):
                     test_points += .5
 
                 if room.points < test_points: # if new people beat out current ocupents
-                    DBSession.query(Room).filter_by(number=appstruct['roomNumber']).update({"name1": int(appstruct['partnerName']) if not appstruct['partnerName'] == none else None, "name2": 10387, "points": test_points})
                     room = DBSession.query(Room).filter(or_(Room.name1 == appstruct['partnerName'], Room.name2 == appstruct['partnerName'])).first();
                     if not room == None:
                         if room.name1 == appstruct['partnerName']:
@@ -377,6 +428,7 @@ def view_join(request):
                             room.name2 = None
                         room.points -= conn.get_points_uid(appstruct['partnerName'])
                         DBSession.add(room)
+                    DBSession.query(Room).filter_by(number=appstruct['roomNumber']).update({"name2": int(appstruct['partnerName']) if not appstruct['partnerName'] == none else None, "name1": 10387, "points": test_points})
                     DBSession.flush()
                 else:
                     request.session.flash('Warning: You do not have enough housing points')

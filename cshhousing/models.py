@@ -28,6 +28,7 @@ class Room(Base):
 
     def __init__(self, number):
         self.number = number
+        self.points = 0
 
     def __str__(self):
         return str(self.number) + ", " + str(self.name1) + ", " + str(self.name2)
