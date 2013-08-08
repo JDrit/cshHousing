@@ -194,7 +194,6 @@ def view_admin_edit(request):
         for element in conn.get_active():
             names.append((element[0][1]['uidNumber'][0], element[0][1]['uid'][0]))
             names_validate.append(element[0][1]['uidNumber'][0])
-        print '\n', room[0].name2, '\n'
         class Schema(colander.Schema):
             name1 = colander.SchemaNode(
 		    	colander.String(),
@@ -207,12 +206,12 @@ def view_admin_edit(request):
 		    	title = 'Roommate #2',
 			    widget = ChosenSingleWidget(values=names),
     			validator = colander.OneOf(names_validate),
-                default = room[0].name2)
+                default = room[0].name2 or empty)
             locked = colander.SchemaNode(
 			    colander.Bool(),
     			title = 'Locked',
 	    		widget = deform.widget.CheckboxWidget(),
-                default = room[0].name2 or empty)
+                default = room[0].locked)
 
         schema = Schema()
         form = deform.Form(schema, buttons=('submit', 'cancel'))
@@ -222,16 +221,24 @@ def view_admin_edit(request):
                 appstruct = form.validate(request.POST.items())
                 name1 = appstruct['name1'] if not appstruct['name1'] == empty else None
                 name2 = appstruct['name2'] if not appstruct['name2'] == empty else None
-                DBSession.query(Room).filter_by(number=request.matchdict['room_number']).update({'name1': name1, 'name2': name2, 'locked': appstruct['locked']})
+                points = sum(conn.get_points_uidNumbers([name1, name2]).values())
+                if not DBSession.query(User).filter(or_(and_(User.name == name1, User.number == request.matchdict['room_number']), and_(User.name == name2, User.number == request.matchdict['room_number']))).first() == None:
+                    points += .5
+
+                DBSession.query(Room).filter_by(number=request.matchdict['room_number']).update({'name1': name1, 'name2': name2, 'locked': appstruct['locked'], 'points': points})
                 DBSession.flush()
-                request.session.flash("Successfully updated room")
+                conn.close()
+                request.session.flash("Successfully updated room #" + str(request.matchdict['room_number']))
                 return HTTPFound(location=request.route_url('view_admin'))
             except deform.ValidationFailure, e:
+                conn.close()
                 return {'form': e.render(), 'number': request.matchdict['room_number']}
-        else:
+        else: # regular viewing
+            conn.close()
             return {'form': form.render(), 'number': request.matchdict['room_number']}
 
     else: # invalid permissions
+        conn.close()
         return HTTPFound(location=request.route_url('view_main'))
 
 @view_config(route_name='view_leave')
@@ -294,7 +301,8 @@ def view_join(request):
     none = 'none'
     names.append((none, '- None -'))
     names_validate.append(none)
-    current_room = None
+    current_room = None # the current room for the user
+    current_room_rm = None # the current room for the roommate
     if ('cancel', u'cancel') in request.POST.items():
         return HTTPFound(location=request.route_url('view_main'))
 
@@ -361,6 +369,14 @@ def view_join(request):
 
                 if room.points < test_points: # if new people beat out current ocupents
                     DBSession.query(Room).filter_by(number=appstruct['roomNumber']).update({"name1": int(appstruct['partnerName']) if not appstruct['partnerName'] == none else None, "name2": 10387, "points": test_points})
+                    room = DBSession.query(Room).filter(or_(Room.name1 == appstruct['partnerName'], Room.name2 == appstruct['partnerName'])).first();
+                    if not room == None:
+                        if room.name1 == appstruct['partnerName']:
+                            room.name1 = None
+                        else:
+                            room.name2 = None
+                        room.points -= conn.get_points_uid(appstruct['partnerName'])
+                        DBSession.add(room)
                     DBSession.flush()
                 else:
                     request.session.flash('Warning: You do not have enough housing points')
