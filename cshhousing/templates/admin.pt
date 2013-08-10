@@ -129,6 +129,21 @@
 		</div>
 		<div class="tab-pane" id="log">
 		  <h2>View Logs</h2>
+                  <table class="table table-hover table-striped">
+	            <tr>
+                      <td>Date:</td>
+	              <td>Name:</td>
+                      <td>Action:</td>
+		      <td>Description:</td>
+		    </tr>
+		    <tr tal:repeat="log logs">
+		      <?python s = log.date.strftime('%Y-%m-%d %H:%M') ?>
+ 	              <td>${s}</td>
+		      <td>${log.uid_number}</td>
+	              <td>${log.log_type}</td>
+                      <td>${log.log_data}</td>
+		    </tr>
+                  </table>
 		</div>
 		<div class="tab-pane" id="settings">
 		  <h2>Settings</h2>

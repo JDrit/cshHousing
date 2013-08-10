@@ -38,11 +38,12 @@ class User(Base):
 class Log(Base):
     __tablename__ = 'logs'
     date = Column(DateTime, primary_key = True, default = datetime.datetime.now())
+    uid_number = Column(Integer)
     log_type = Column(Text)
     log_data = Column(Text)
 
-    def __init__(date, log_type, log_data):
-        self.date = date
+    def __init__(self, uid_number, log_type, log_data):
+        self.uid_number = uid_number
         self.log_type = log_type
         self.log_data = log_data
 
