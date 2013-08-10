@@ -1,18 +1,8 @@
-from sqlalchemy import (
-    Column,
-    Integer,
-    Text,
-    Boolean
-    )
-
+from sqlalchemy import Column, Integer, Text, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base
-
-from sqlalchemy.orm import (
-    scoped_session,
-    sessionmaker,
-    )
-
+from sqlalchemy.orm import scoped_session, sessionmaker
 from zope.sqlalchemy import ZopeTransactionExtension
+import datetime
 
 DBSession = scoped_session(sessionmaker(extension=ZopeTransactionExtension()))
 Base = declarative_base()
@@ -45,15 +35,16 @@ class User(Base):
     def __str__(self):
         return str(self.name) + ", " + str(self.number)
 
+class Log(Base):
+    __tablename__ = 'logs'
+    date = Column(DateTime, primary_key = True, default = datetime.datetime.now())
+    log_type = Column(Text)
+    log_data = Column(Text)
 
-''''
-class Page(Base):
-    __tablename__ = 'pages'
-    id = Column(Integer, primary_key = True)
-    name = Column(Text, unique = True)
-    data = Column(Text)
+    def __init__(date, log_type, log_data):
+        self.date = date
+        self.log_type = log_type
+        self.log_data = log_data
 
-    def __init__(self, name, data):
-        self.name = name
-        self.data = data
-'''
+    def __str__(self):
+        return str(self.date) + " : " + self.log_type + " : " + self.log_data

@@ -10,7 +10,7 @@ from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 from pyramid.view import view_config
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import or_, and_
-from .models import DBSession, Room, User
+from .models import DBSession, Room, User, Log
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import PythonLexer
@@ -164,6 +164,7 @@ def view_admin(request):
         current_rooms_schema = Current_Rooms_Schema()
         current_rooms_form = deform.Form(current_rooms_schema, buttons=('submit',))
         msgs = request.session.pop_flash()
+        logs = DBSession.query(Log).limit(100).all()
         # new room was given
         if ('__start__', u'new_rooms:sequence') in request.POST.items():
             try:
@@ -180,7 +181,10 @@ def view_admin(request):
                     msgs.append('Successfully added ' + str(len(appstruct['new_rooms'])) + ' new room')
             except deform.ValidationFailure, e:
                 msgs.append('Warning: could not added new rooms')
-                return {'name_map': name_map, 'rooms': rooms, 'form': e.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': current_rooms_form.render(), 'msgs': msgs, 'locked': siteClosed}
+                return {'name_map': name_map, 'rooms': rooms, 'form': e.render(),
+                        'users': users, 'points_map': points_map,
+                        'current_rooms_form': current_rooms_form.render(), 'msgs': msgs,
+                        'locked': siteClosed, 'logs': logs}
 
         # current room was given
         elif ('__start__', u'current_rooms:sequence') in request.POST.items():
@@ -194,8 +198,13 @@ def view_admin(request):
                 msgs.append('Successfully added current room')
             except deform.ValidationFailure, e:
                 msgs.append('Warning: Could not add current room assignment')
-                return {'name_map': name_map, 'rooms': rooms, 'form': form.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': e.render(), 'msgs': msgs, 'locked': siteClosed}
-        return {'name_map': name_map, 'rooms': rooms, 'form': form.render(), 'users': users, 'points_map': points_map, 'current_rooms_form': current_rooms_form.render(), 'msgs': msgs, 'locked': siteClosed}
+                return {'name_map': name_map, 'rooms': rooms, 'form': form.render(),
+                        'users': users, 'points_map': points_map,
+                        'current_rooms_form': e.render(), 'msgs': msgs,
+                        'locked': siteClosed, 'logs': logs}
+        return {'name_map': name_map, 'rooms': rooms, 'form': form.render(), 'users': users,
+                'points_map': points_map, 'current_rooms_form': current_rooms_form.render(),
+                'msgs': msgs, 'locked': siteClosed, 'logs': logs}
     else:
         conn.close()
         return HTTPFound(location=request.route_url('view_main'))
@@ -359,7 +368,6 @@ def view_join(request):
 
     uidNumber = conn.get_uid_number("jd")
     for room in DBSession.query(Room).all():
-        print room
         if not room.locked:
             numbers_validate.append(room.number)
             numbers.append((room.number, room.number))
