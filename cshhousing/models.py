@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, Boolean, DateTime
+from sqlalchemy import Column, Integer, Text, Boolean, DateTime, Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 from zope.sqlalchemy import ZopeTransactionExtension
@@ -37,7 +37,8 @@ class User(Base):
 
 class Log(Base):
     __tablename__ = 'logs'
-    date = Column(DateTime, primary_key = True, default = datetime.datetime.now())
+    index = Column(Integer, primary_key = True, autoincrement = True)
+    date = Column(DateTime, default = datetime.datetime.now())
     uid_number = Column(Integer)
     log_type = Column(Text)
     log_data = Column(Text)
