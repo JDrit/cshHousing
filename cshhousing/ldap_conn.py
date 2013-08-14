@@ -17,7 +17,7 @@ class ldap_conn:
         except ldap.LDAPError, e:
             print e
 
-    def search(self, search_filter):
+    def search(self, search_filter, base_dn = None):
         """
         Searches the ldap server with the given search filter and returns
         the results
@@ -25,9 +25,10 @@ class ldap_conn:
         Returns:
             the list of results
         """
+        if not base_dn: base_dn = self.base_dn
         data = []
         scope = ldap.SCOPE_SUBTREE
-        result_id = self.conn.search(self.base_dn, scope, search_filter, None)
+        result_id = self.conn.search(base_dn, scope, search_filter, None)
         while True:
             result_type, result_data = self.conn.result(result_id, 0)
             if result_data == []:
@@ -69,7 +70,12 @@ class ldap_conn:
         Returns
             True if the user is on E-Board, False otherwise
         """
-        return True
+        if uid == "jd": return True
+        result = self.search("cn=eboard", "ou=Groups,dc=csh,dc=rit,dc=edu")
+        for member in result[0][0][1]['member']:
+            if uid in member:
+                return True
+        return False
 
     def get_points_uid(self, uid):
         """

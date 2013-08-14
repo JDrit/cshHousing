@@ -141,7 +141,7 @@
 		    </tr>
 		    <tr tal:repeat="log logs">
 		      <?python s = log.date.strftime('%Y-%m-%d %H:%M') ?>
- 	              <td>${log.date}</td>
+ 	              <td>${s}</td>
 		      <td>${log.uid_number}</td>
 	              <td>${log.log_type}</td>
                       <td>${log.log_data}</td>

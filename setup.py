@@ -18,6 +18,7 @@ requires = [
     'colander',
     'deform_bootstrap',
     'deform',
+    'pyramid_mailer',
     ]
 
 setup(name='cshHousing',

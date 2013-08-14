@@ -13,8 +13,8 @@ class Room(Base):
     number = Column(Integer, primary_key = True)
     name1 = Column(Integer)
     name2 = Column(Integer)
-    locked = Column(Boolean)
-    points = Column(Integer)
+    locked = Column(Boolean, default = False)
+    points = Column(Integer, default = 0)
 
     def __init__(self, number):
         self.number = number

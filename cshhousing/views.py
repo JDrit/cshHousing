@@ -22,7 +22,7 @@ from ldap_conn import ldap_conn
 _ = TranslationStringFactory('deform')
 css = HtmlFormatter().get_style_defs('.highlight')
 
-siteClosed = False
+siteClosed = False # boolean used to determine if users can modify the layout
 
 def translator(term):
     return get_localizer(get_current_request()).translate(term)
@@ -152,15 +152,11 @@ def view_admin(request):
 
         conn.close()
 
-        def notIn(value):
-            """
-            Makes sure that the room number is not already in use
-            value: the new room number
-            """
-            return not value in room_numbers
-
         class New_Room(colander.Schema):
-            number = colander.SchemaNode(colander.Integer(), missing = colander.required, validator = colander.Function(notIn))
+            number = colander.SchemaNode(colander.Integer(),
+                    missing = colander.required,
+                    validator = colander.Function(
+                        lambda value: not value in room_numbers))
             locked = colander.SchemaNode(colander.Bool())
 
         class New_Rooms(colander.SequenceSchema):
@@ -198,9 +194,7 @@ def view_admin(request):
         current_rooms_schema = Current_Rooms_Schema()
         current_rooms_form = deform.Form(current_rooms_schema, buttons=('submit',))
         msgs = request.session.pop_flash()
-        logs = DBSession.query(Log).limit(100).all()
-        logs.reverse()
-        # new room was given
+       # new room was given
         if ('__start__', u'new_rooms:sequence') in request.POST.items():
             try:
                 appstruct = form.validate(request.POST.items())
@@ -212,9 +206,10 @@ def view_admin(request):
                         DBSession.add(room)
                         room_numbers.add(new_room['number'])
                         rooms_added += 1
-                DBSession.add(Log(10387, "new room added",
-                    "added " + str(rooms_added) + " new rooms"))
-                transaction.commit()
+                        DBSession.add(Log(10387, "new room added",
+                            "added room #" + str(new_room['number'])))
+                        rooms.append(room)
+                rooms.sort(key = lambda room: room.number)
                 if len(appstruct['new_rooms']) > 1:
                     msgs.append('Successfully added ' + str(rooms_added) +
                             ' new rooms')
@@ -222,6 +217,8 @@ def view_admin(request):
                     msgs.append('Successfully added the new room')
 
             except deform.ValidationFailure, e:
+                logs = DBSession.query(Log).limit(100).all()
+                logs.reverse()
                 msgs.append('Warning: could not added new rooms')
                 return {'name_map': name_map, 'rooms': rooms, 'form': e.render(),
                         'users': users, 'points_map': points_map,
@@ -237,19 +234,23 @@ def view_admin(request):
                     if DBSession.query(User).filter_by(name =
                             current_room['name']).update(
                                     {'number': current_room['number']}) == 0:
-                        DBSession.add(User(current_room['name'], current_room['number']))
+                        user = User(current_room['name'], current_room['number'])
+                        DBSession.add(user)
                         rooms_added += 1
-                DBSession.add(Log(10387, "current room added",
-                    "added " + str(rooms_added) + "  current rooms"))
-                transaction.commit()
-                users = DBSession.query(User).all()
+                        DBSession.add(Log(10387, "current room added",
+                            "added room " + str(current_room['number'])))
+                        users.append(user)
                 msgs.append('Successfully added current room')
             except deform.ValidationFailure, e:
+                logs = DBSession.query(Log).limit(100).all()
+                logs.reverse()
                 msgs.append('Warning: Could not add current room assignment')
                 return {'name_map': name_map, 'rooms': rooms, 'form': form.render(),
                         'users': users, 'points_map': points_map,
                         'current_rooms_form': e.render(), 'msgs': msgs,
                         'locked': siteClosed, 'logs': logs}
+        logs = DBSession.query(Log).limit(100).all()
+        logs.reverse()
         return {'name_map': name_map, 'rooms': rooms, 'form': form.render(), 'users': users,
                 'points_map': points_map, 'current_rooms_form': current_rooms_form.render(),
                 'msgs': msgs, 'locked': siteClosed, 'logs': logs}
@@ -318,10 +319,9 @@ def view_admin_edit(request):
                 DBSession.query(Room).filter_by(number=
                         request.matchdict['room_number']).update({'name1': name1,
                             'name2': name2, 'locked': appstruct['locked'], 'points': points})
-                DBSession.add(Log(10387, "edit", "edited room " +
-                    str(request.matchdict['room_number']) + " from " +
-                    str(room[0].name1 or "None") + ", " + str(room[0].name2) + " to " +
-                    str(name1 or "None") + ", " + str(name2 or "None")))
+                DBSession.add(Log(10387, "edit", str(request.matchdict['room_number']) + " from " +
+                    str(room[0].name1 or "None") + ", " + str(room[0].name2) + " locked: " + str(room[0].locked) +  " to " +
+                    str(name1 or "None") + ", " + str(name2 or "None") + " locked: " + str(appstruct['locked'])))
                 transaction.commit()
                 conn.close()
                 request.session.flash("Successfully updated room #" + str(request.matchdict['room_number']))
