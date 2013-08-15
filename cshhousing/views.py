@@ -45,6 +45,7 @@ def view_delete_logs(request):
         DBSession.query(Log).delete()
         transaction.commit()
         conn.close()
+        request.session.flash("Logs cleared")
         return HTTPFound(request.route_url('view_admin'))
     else:
         conn.close()
@@ -89,9 +90,10 @@ def view_delete_current(request):
         except NoResultFound, e:
             request.session.flash("Warning: could not delete current room assignment")
             pass
-
+        conn.close()
         return HTTPFound(request.route_url('view_admin'))
     else:
+        conn.close()
         return HTTPFound(request.route_url('view_main'))
 
 @view_config(route_name='view_close')
@@ -234,13 +236,13 @@ def view_admin(request):
                     if DBSession.query(User).filter_by(name =
                             current_room['name']).update(
                                     {'number': current_room['number']}) == 0:
-                        user = User(current_room['name'], current_room['number'])
-                        DBSession.add(user)
+                        DBSession.add(User(current_room['name'], current_room['number']))
                         rooms_added += 1
                         DBSession.add(Log(10387, "current room added",
                             "added room " + str(current_room['number'])))
                         users.append(user)
                 msgs.append('Successfully added current room')
+                transaction.commit()
             except deform.ValidationFailure, e:
                 logs = DBSession.query(Log).limit(100).all()
                 logs.reverse()
@@ -272,8 +274,12 @@ def view_admin_edit(request):
 
         if ('cancel', u'cancel') in request.POST.items():
             return HTTPFound(location=request.route_url('view_admin'))
-        room = DBSession.query(Room).filter_by(number=request.matchdict['room_number']).all()
-        if room == []:
+        rooms = DBSession.query(Room).all()
+        for r in rooms:
+            if str(r.number) == request.matchdict['room_number']:
+                room = r #DBSession.query(Room).filter_by(number=request.matchdict['room_number']).first()
+                break
+        else:
             request.session.flash("Warning: Invalid room number")
             return HTTPFound(location=request.route_url('view_admin'))
 
@@ -288,18 +294,18 @@ def view_admin_edit(request):
 			    title = 'Roommate #1',
     			widget = ChosenSingleWidget(values=names),
 	    		validator = colander.OneOf(names_validate),
-                default = room[0].name1 or empty)
+                default = room.name1 or empty)
             name2 = colander.SchemaNode(
 	    		colander.String(),
 		    	title = 'Roommate #2',
 			    widget = ChosenSingleWidget(values=names),
     			validator = colander.OneOf(names_validate),
-                default = room[0].name2 or empty)
+                default = room.name2 or empty)
             locked = colander.SchemaNode(
 			    colander.Bool(),
     			title = 'Locked',
 	    		widget = deform.widget.CheckboxWidget(),
-                default = room[0].locked)
+                default = room.locked)
 
         schema = Schema()
         form = deform.Form(schema, buttons=('submit', 'cancel'))
@@ -309,19 +315,75 @@ def view_admin_edit(request):
                 appstruct = form.validate(request.POST.items())
                 name1 = appstruct['name1'] if not appstruct['name1'] == empty else None
                 name2 = appstruct['name2'] if not appstruct['name2'] == empty else None
+                if name1 == name2 and not name1 == None and not name2 == None:
+                    request.session.flash('Warning: Names cannot be the same')
+                    return HTTPFound(location=request.route_url('view_admin'))
+
+                realName1 = realName2 = oldRealName1 = oldRealName2 = None # users' uids for log
+                if not name1 == None or not name1 == None:
+                    for name in names:
+                        if name[0] == name1:
+                           realName1 = name[1]
+                        if name[0] == name2:
+                            realName2 = name[1]
+                        if name[0] == str(room.name1):
+                            oldRealName1 = name[1]
+                        if name[0] == str(room.name2):
+                            oldRealName2 = name[1]
+
                 points = sum(conn.get_points_uidNumbers([name1, name2]).values())
-                if not DBSession.query(User).filter(or_(
+                if not DBSession.query(User).filter(or_( # squatting points
                     and_(User.name == name1, User.number == request.matchdict['room_number']),
                     and_(User.name == name2, User.number == request.matchdict['room_number'])
                     )).first() == None:
                     points += .5
 
+                # removes the new users from other rooms, if they were in a different room
+                to_remove = [int(name1 or -1), int(name2 or -1)]
+                old_rooms = [room for room in rooms if room.name1 == int(name1 or 0) or room.name1 == int(name2 or 0) or room.name2 == int(name1 or 0) or room.name2 == int(name2 or 0)]
+                for room in old_rooms:
+                    if room.number == int(request.matchdict['room_number']):
+                        continue
+                    if room.name1 in to_remove:
+                        room.name1 = None
+                    if room.name2 in to_remove:
+                        room.name2 = None
+                    room.points = sum(conn.get_points_uidNumbers([room.name1, room.name2]).values())
+                    DBSession.add(room)
+
+                # update db
                 DBSession.query(Room).filter_by(number=
                         request.matchdict['room_number']).update({'name1': name1,
                             'name2': name2, 'locked': appstruct['locked'], 'points': points})
+
+                if not oldRealName1 == None and not room.name1 == None:
+                    oldNameString1 = oldRealName1 + "(" + str(room.name1) + ")"
+                elif not room.name1 == None:
+                    oldNameString1 = str(room.name1)
+                else:
+                    oldNameString1 = "None"
+                if not oldRealName2 == None and not room.name2 == None:
+                    oldNameString2 = oldRealName2 + "(" + str(room.name2) + ")"
+                elif not room.name2 == None:
+                    oldNameString2 = str(room.name2)
+                else:
+                    oldNameString2 = "None"
+                if not realName1 == None:
+                    realNameString1 = realName1 + "(" + str(name1) + ")"
+                elif not name1 == None:
+                    realNameString1 = str(name1)
+                else:
+                    realNameString1 = "None"
+                if not realName2 == None:
+                    realNameString2 = realName2 + "(" + str(name2) + ")"
+                elif not name2 == None:
+                    realNameString2 = str(name2)
+                else:
+                    realNameString2 = "None"
+
                 DBSession.add(Log(10387, "edit", str(request.matchdict['room_number']) + " from " +
-                    str(room[0].name1 or "None") + ", " + str(room[0].name2) + " locked: " + str(room[0].locked) +  " to " +
-                    str(name1 or "None") + ", " + str(name2 or "None") + " locked: " + str(appstruct['locked'])))
+                    oldNameString1 + ", " + oldNameString2 + " locked: " + str(room.locked) +  " to " +
+                    realNameString1 + ", " + realNameString2 + " locked: " + str(appstruct['locked'])))
                 transaction.commit()
                 conn.close()
                 request.session.flash("Successfully updated room #" + str(request.matchdict['room_number']))
@@ -442,8 +504,9 @@ def view_join(request):
 
 
     for element in conn.get_active():
-        names.append((element[0][1]['uidNumber'][0], element[0][1]['uid'][0]))
-        names_validate.append(element[0][1]['uidNumber'][0])
+        if not element[0][1]['uid'][0] == "jd":
+            names.append((element[0][1]['uidNumber'][0], element[0][1]['uid'][0]))
+            names_validate.append(element[0][1]['uidNumber'][0])
 
     class Schema(colander.Schema):
         roomNumber = colander.SchemaNode(
@@ -516,18 +579,63 @@ def view_join(request):
                            DBSession.add(Log(10387, "join", "user joined room alone"))
                     else: # user joined with a roommate
                         if not join_room.name1 == None or not join_room.name2 == None:
+                            partnerString = kickString1 = kickString2 = None
                             users = str(join_room.name1) if not join_room.name1 == None else ""
                             if users == "":
                                 users = str(join_room.name2)
                             else:
                                 users += " & " + str(join_room.name2)
-                            DBSession.add(Log(10387, "join",
-                                "user joined room " + str(appstruct['roomNumber']) + " with " +
-                                str(appstruct['partnerName']) + ", kicking " + users))
-                        else:
-                            DBSession.add(Log(10387, "join", "user joined room with " +
-                                str(appstruct['partnerName'])))
+                            for name in names:
+                                if name[0] == str(appstruct['partnerName']):
+                                    partnerString = name[1]
+                                if name[0] == str(join_room.name1):
+                                    kickString1 = name[1]
+                                if name[0] == str(join_room.name2):
+                                    kickString2 = name[1]
+                            if not kickString1 == None and not join_room.name1 == None:
+                                kickString = kickString1 + "(" + str(join_room.name1) + ")"
+                            elif not join_room.name1 == None:
+                                kickString = str(join_room.name1)
+                            else:
+                                kickString = ""
 
+                            if kickString == "":
+                                if not kickString2 == None and not join_room.name2 == None:
+                                    kickString = kickString2 + "(" + str(join_room.name2) + ")"
+                                elif not join_room.name2 == None:
+                                    kickString = str(join_room.name2)
+                            else:
+                                if not kickString2 == None and not join_room.name2 == None:
+                                    kickString += " & " + kickString2 + "(" + str(join_room.name2) + ")"
+                                elif not join_room.name2 == None:
+                                    kickString += " & " + str(join_room.name2)
+
+                            if not partnerString == None:
+                                partnerString = partnerString + "(" + str(appstruct['partnerName']) + ")"
+                            else:
+                                partnerString = appstruct['partnerName']
+
+                            DBSession.add(Log(10387, "join",
+                                "room " + str(appstruct['roomNumber']) + " with " +
+                                partnerString + ", kicking " + kickString))
+                        else: # joined with partner and did not kick anyone
+                            for name in names:
+                                if name[0] == str(appstruct['partnerName']):
+                                    DBSession.add(Log(10387, "join", "room " + str(appstruct['roomNumber']) + " with " +
+                                            name[1] + "(" + str(appstruct['partnerName']) + ")"))
+                                    break
+                            else:
+                                DBSession.add(Log(10387, "join", "room " + str(appstruct['roomNumber']) + " with " +
+                                    str(appstruct['partnerName'])))
+                    partnerRoom = DBSession.query(Room).filter(or_(
+                        Room.name1 == appstruct['partnerName'],
+                            Room.name2 == appstruct['partnerName'])).first()
+                    if partnerRoom:
+                        if partnerRoom.name1 == int(appstruct['partnerName']):
+                            partnerRoom.name1 = None
+                        else:
+                            partnerRoom.name2 = None
+                        DBSession.add(partnerRoom) # removes the partner from their old room
                     DBSession.query(Room).filter_by(number=appstruct['roomNumber']).update(
                             {"name2": int(appstruct['partnerName'])
                                 if not appstruct['partnerName'] == none else None,
