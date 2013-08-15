@@ -34,7 +34,7 @@
               <li class="active"><a href="/join">Join Room</a></li>
               <li><a href="/leave">Leave Room</a></li>
             </ul>
-            <ul class="nav navbar-nav pull-right">
+            <ul tal:condition="admin == True" class="nav navbar-nav pull-right">
               <li><a href="/admin">Admin</a></li>
             </ul>
           </div><!--/.nav-collapse -->

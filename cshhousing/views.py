@@ -84,12 +84,12 @@ def view_delete_current(request):
             DBSession.delete(DBSession.query(User).filter_by(name =
                 request.matchdict['name']).one())
             request.session.flash("Successfully deleated current room assignment")
-            DBSession.add(Log(10387, "delete current", str(request.matchdict['name'] +
-                "'s current room was deleted")))
+            result = conn.search("uidNumber=" + request.matchdict['name'])
+            uid = result[0][0][1]['uid'][0] + "(" + str(request.matchdict['name']) + ")" if result != [] else str(request.matchdict['name'])
+            DBSession.add(Log(10387, "delete current", uid + "'s current room was deleted"))
             transaction.commit()
         except NoResultFound, e:
             request.session.flash("Warning: could not delete current room assignment")
-            pass
         conn.close()
         return HTTPFound(request.route_url('view_admin'))
     else:
@@ -239,7 +239,7 @@ def view_admin(request):
                         DBSession.add(User(current_room['name'], current_room['number']))
                         rooms_added += 1
                         DBSession.add(Log(10387, "current room added",
-                            "added room " + str(current_room['number'])))
+                            "added room #" + str(current_room['number'])))
                         users.append(user)
                 msgs.append('Successfully added current room')
                 transaction.commit()
@@ -489,6 +489,7 @@ def view_join(request):
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
 
     uidNumber = conn.get_uid_number("jd")
+    admin = conn.isEBoard("jd")
     for room in DBSession.query(Room).all():
         if not room.locked:
             numbers_validate.append(room.number)
@@ -647,6 +648,8 @@ def view_join(request):
             request.session.flash('Successfully joined room ' + str(appstruct['roomNumber']))
             return HTTPFound(location=request.route_url('view_main'))
         except deform.ValidationFailure, e:
-            return {'form': e.render()}
+            conn.close()
+            return {'form': e.render(), 'admin': admin}
     else:
-       return {'form': form.render()}
+        conn.close()
+        return {'form': form.render(), 'admin': admin}
