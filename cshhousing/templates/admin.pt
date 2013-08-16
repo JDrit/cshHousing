@@ -113,10 +113,10 @@
 		      <td></td>
                     </tr>
                     <tr tal:repeat="user users">
-		      <?python user_name = name_map[user.name] if user.name in name_map else user.name?>
+		      <?python user_name = name_map.get(user.name, user.name)?>
                       <td>${user_name}</td>
                       <td>${user.number}</td>
-                      <?python points = points_map.get(user.name)?>
+                      <?python points = points_map.get(user.name, 0)?>
                       <td>${points}</td>
                      <td>
                        <a href="/delete_current/${user.name}">
@@ -141,8 +141,9 @@
 		    </tr>
 		    <tr tal:repeat="log logs">
 		      <?python s = log.date.strftime('%Y-%m-%d %H:%M') ?>
+		      <?python name = name_map.get(log.uid_number, log.uid_number) ?>
  	              <td>${s}</td>
-		      <td>${log.uid_number}</td>
+		      <td>${name}</td>
 	              <td>${log.log_type}</td>
                       <td>${log.log_data}</td>
 		    </tr>

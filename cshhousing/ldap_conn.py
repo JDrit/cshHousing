@@ -14,8 +14,8 @@ class ldap_conn:
             self.conn = ldap.initialize(address)
             self.conn.simple_bind(bind_dn, password)
             self.base_dn = base_dn
-        except ldap.LDAPError, e:
-            print e
+        except ldap.LDAPError, error:
+            print error
 
     def search(self, search_filter, base_dn = None):
         """

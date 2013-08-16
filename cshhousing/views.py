@@ -34,7 +34,12 @@ def translator(term):
 
 @view_config(context=HTTPNotFound, renderer='templates/404.pt')
 def view_404(request):
-    return {}
+    settings = request.registry.settings
+    conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
+    admin = conn.isEBoard("jd")
+    conn.close()
+    return {'admin': admin}
+    return
 
 @view_config(route_name='view_delete_logs')
 def view_delete_logs(request):
@@ -128,7 +133,6 @@ def view_admin(request):
 
     if conn.isEBoard("jd"):
         rooms = DBSession.query(Room).all()
-        users = DBSession.query(User).all()
         room_numbers = set() # used to verify that same room # are not being used
         name_map = dict()
         points_map = dict()
@@ -141,18 +145,11 @@ def view_admin(request):
                 ids.add(room.name1)
             if room.name2 is not None:
                 ids.add(room.name2)
-        for user in users:
-            ids.add(user.name)
-        if not ids == set():
-            for user in conn.search_uids(list(ids)):
-                name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['uid'][0]
-                points_map[int(user[0][1]['uidNumber'][0])] = 5 #user[0][1]['housingPoints'][0]
 
         for element in conn.get_active():
             names.append((element[0][1]['uidNumber'][0], element[0][1]['uid'][0]))
             names_validate.append(element[0][1]['uidNumber'][0])
 
-        conn.close()
 
         class New_Room(colander.Schema):
             number = colander.SchemaNode(colander.Integer(),
@@ -219,13 +216,8 @@ def view_admin(request):
                     msgs.append('Successfully added the new room')
 
             except deform.ValidationFailure, e:
-                logs = DBSession.query(Log).limit(100).all()
-                logs.reverse()
                 msgs.append('Warning: could not added new rooms')
-                return {'name_map': name_map, 'rooms': rooms, 'form': e.render(),
-                        'users': users, 'points_map': points_map,
-                        'current_rooms_form': current_rooms_form.render(), 'msgs': msgs,
-                        'locked': siteClosed, 'logs': logs}
+                form = e.render()
 
         # current room was given
         elif ('__start__', u'current_rooms:sequence') in request.POST.items():
@@ -236,25 +228,31 @@ def view_admin(request):
                     if DBSession.query(User).filter_by(name =
                             current_room['name']).update(
                                     {'number': current_room['number']}) == 0:
-                        DBSession.add(User(current_room['name'], current_room['number']))
+                        user = User(current_room['name'], current_room['number'])
+                        DBSession.add(user)
                         rooms_added += 1
                         DBSession.add(Log(10387, "current room added",
                             "added room #" + str(current_room['number'])))
-                        users.append(user)
                 msgs.append('Successfully added current room')
-                transaction.commit()
             except deform.ValidationFailure, e:
-                logs = DBSession.query(Log).limit(100).all()
-                logs.reverse()
                 msgs.append('Warning: Could not add current room assignment')
-                return {'name_map': name_map, 'rooms': rooms, 'form': form.render(),
-                        'users': users, 'points_map': points_map,
-                        'current_rooms_form': e.render(), 'msgs': msgs,
-                        'locked': siteClosed, 'logs': logs}
+                current_rooms_form = e.render()
+
         logs = DBSession.query(Log).limit(100).all()
         logs.reverse()
-        return {'name_map': name_map, 'rooms': rooms, 'form': form.render(), 'users': users,
-                'points_map': points_map, 'current_rooms_form': current_rooms_form.render(),
+        users = DBSession.query(User).all()
+        for user in users:
+            ids.add(user.name)
+        for log in logs:
+            ids.add(log.uid_number)
+        if not ids == set():
+            for user in conn.search_uids(list(ids)):
+                name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['uid'][0]
+                points_map[int(user[0][1]['uidNumber'][0])] = 5 #user[0][1]['housingPoints'][0]
+
+        conn.close()
+        return {'name_map': name_map, 'rooms': rooms, 'form': form, 'users': users,
+                'points_map': points_map, 'current_rooms_form': current_rooms_form,
                 'msgs': msgs, 'locked': siteClosed, 'logs': logs}
     else:
         conn.close()
@@ -544,17 +542,31 @@ def view_join(request):
                 points.append(10387) # the current user's uidNumber
                 results = conn.get_points_uidNumbers(points)
 
-                test_points += results.get(appstruct['partnerName']) or 0
-                test_points += results.get(10387) or 0
+                test_points += results.get(appstruct['partnerName'], 0)
+                test_points += results[10387]
                 # squatting points
-                if not DBSession.query(User).filter(or_(
-                    and_(User.name == appstruct['partnerName'],
-                        User.number == appstruct['roomNumber']),
-                    and_(User.name == 10387, User.number == appstruct['roomNumber']))
-                    ).first() == None:
+                squating = DBSession.query(User).filter(or_(
+                    and_(User.name == appstruct['partnerName'], User.number == appstruct['roomNumber']),
+                    and_(User.name == 10387, User.number == appstruct['roomNumber']))).first()
+                if squating:
                     test_points += .5
-
-                if join_room.points < test_points: # if new people beat out current ocupents
+                if join_room.name1 == None and appstruct['partnerName'] == none: # only one person in room and joining alone
+                    join_room.name1 = 10387
+                    join_room.points += results[10387]
+                    if squating:
+                        join_room.points += .5
+                    DBSession.add(join_room)
+                    DBSession.add(Log(10387, "join", "room " + str(appstruct['roomNumber'])))
+                    transaction.commit()
+                elif join_room.name2 == None and appstruct['partnerName'] == none: # only one person in room and joining alone
+                    join_room.name2 = 10387
+                    join_room.points += results[10387]
+                    if squating:
+                        join_room.points += .5
+                    DBSession.add(join_room)
+                    DBSession.add(Log(10387, "join", "room " + str(appstruct['roomNumber'])))
+                    transaction.commit()
+                elif join_room.points < test_points: # if new people beat out current ocupents
                     old_room = DBSession.query(Room).filter(or_(
                         Room.name1 == appstruct['partnerName'],
                         Room.name2 == appstruct['partnerName'])).first();
