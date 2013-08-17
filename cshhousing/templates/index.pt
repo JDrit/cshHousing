@@ -34,8 +34,9 @@
               <li><a href="/join">Join Room</a></li>
               <li><a href="/leave">Leave Room</a></li>
             </ul>
-            <ul tal:condition="admin == True" class="nav navbar-nav pull-right">
-              <li><a href="/admin">Admin</a></li>
+            <ul class="nav navbar-nav pull-right">
+	      <li><a href="/settings">Settings</a></li>
+              <li tal:condition="admin == True"><a href="/admin">Admin</a></li>
             </ul>
           </div><!--/.nav-collapse -->
         </div>
@@ -73,9 +74,9 @@
             </tr>
 	      <tr tal:repeat="room rooms" tal:attributes="class 'warning' if room.locked else None">
 		<td>${room.number}</td>
-                <?python name1 = name_map[room.name1] if room.name1 in name_map else room.name1?>
+		<?python name1 = name_map.get(room.name1, room.name1) if not room.single else "-SINGLE-" if room.name1 == None else name_map.get(room.name1, room.name1) ?>
 		<td>${name1}</td>
-		<?python name2 = name_map[room.name2] if room.name2 in name_map else room.name2?>
+		<?python name2 = name_map.get(room.name2, room.name2) if not room.single else "-SINGLE-" if room.name2 == None and name1 != "-SINGLE-" else name_map.get(room.name2, room.name2) ?>
 		<td>${name2}</td>
 		<td>${room.points}</td>
 		<td>${room.locked}</td>

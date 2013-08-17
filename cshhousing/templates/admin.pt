@@ -40,6 +40,7 @@
               <li><a href="/leave">Leave Room</a></li>
             </ul>
             <ul class="nav navbar-nav pull-right">
+	      <li><a href="/settings">Settings</a></li>
               <li class="active"><a href="/admin">Admin</a></li>
             </ul>
           </div><!--/.nav-collapse -->
@@ -79,9 +80,9 @@
 	           </tr>
 	           <tr tal:repeat="room rooms">
 		     <td>${room.number}</td>
-		     <?python name1 = name_map[room.name1] if room.name1 in name_map else room.name1?>
+		     <?python name1 = name_map.get(room.name1, room.name1) if not room.single else "-SINGLE-" if room.name1 == None else name_map.get(room.name1, room.name1) ?>
 		     <td>${name1}</td>
-		     <?python name2 = name_map[room.name2] if room.name2 in name_map else room.name2?>
+		     <?python name2 = name_map.get(room.name2, room.name2) if not room.single else "-SINGLE-" if room.name2 == None and name1 != "-SINGLE-" else name_map.get(room.name2, room.name2) ?>
 		     <td>${name2}</td>
 		     <td>${room.points}</td>
 		     <td>${room.locked}</td>
@@ -154,17 +155,17 @@
 		  <br />
                   <div class="row">
 		    <div class="col-lg-3">
-		    <a href="/close">
-		      <?python button_text = "Lock" if not locked else "Unlock" ?>
-		      <?python button_desc = "This will lock the site to stop users from signing up for rooms" if not locked else "This will unlock the site to allow users to start signing up for rooms" ?>
-		      <button type="button" class="btn btn-primary btn-lg">${button_text}</button>
-                    </a>
-			</div>
-<div class="col-lg-9">
+		      <a href="/close">
+		        <?python button_text = "Lock" if not locked else "Unlock" ?>
+		        <?python button_desc = "This will lock the site to stop users from signing up for rooms" if not locked else "This will unlock the site to allow users to start signing up for rooms" ?>
+		        <button type="button" class="btn btn-primary btn-lg">${button_text}</button>
+                      </a>
+	            </div>
+		    <div class="col-lg-9">
 		      <h3>${button_desc}</h3></div></div>
-		</div>
-              </div>
- 	      <script>
+		    </div>
+                 </div>
+  	      <script>
 	        $(function () {
 		  $('#myTab a:last').tab('show');
 	        })

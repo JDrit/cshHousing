@@ -35,7 +35,7 @@
               <li><a href="/leave">Leave Room</a></li>
             </ul>
             <ul class="nav navbar-nav pull-right">
-	      <li><a href="/settings">Settings</a></li>
+	      <li class="active"><a href="/settings">Settings</a></li>
               <li tal:condition="admin == True"><a href="/admin">Admin</a></li>
             </ul>
           </div><!--/.nav-collapse -->
@@ -44,12 +44,19 @@
 
       <!-- Main component for a primary marketing message or call to action -->
       <div class="jumbotron">
-        <h1><img src="${request.static_url('cshhousing:static/images/logo.png')}"/> Housing Board</h1>
-	  <br />
-	  <h1>Page does not exist!!</h1>
-	  <br />
-	  <br />
-	  <br />
+        <h1><img src="${request.static_url('cshhousing:static/images/logo.png')}"/> User Settings</h1>
+	<br />
+        <div tal:condition="msg">
+          <div class="alert alert-info">
+	    <button type="button" class="close" data-dismiss="alert">&times;</button>
+	      <strong>${msg}</strong>
+	  </div>
+        </div>
+	<br />
+	<span tal:replace="structure form"/>
+	<br />
+        <p>
+        </p>
       </div>
 
     </div> <!-- /container -->

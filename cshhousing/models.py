@@ -9,16 +9,27 @@ Base = declarative_base()
 
 
 class Room(Base):
+    """
+    This stores information on the actual rooms that are available
+    number: the room's number
+    name1: the uidNumber of the first ocupant
+    name2: the uidNumber of the seconds ocupant
+    locked: boolean if the room is locked so no one can sign up for it
+    points: the number of points the current ocupants have
+    single: if the room only allows one ocupant
+    """
     __tablename__ = 'rooms'
     number = Column(Integer, primary_key = True)
     name1 = Column(Integer)
     name2 = Column(Integer)
     locked = Column(Boolean, default = False)
     points = Column(Integer, default = 0)
+    single = Column(Boolean, default = False)
 
-    def __init__(self, number):
+    def __init__(self, number, locked = False, single = False):
         self.number = number
-        self.points = 0
+        self.locked = locked
+        self.single = single
 
     def __str__(self):
         return str(self.number) + ", " + str(self.name1) + ", " + str(self.name2)
@@ -50,3 +61,15 @@ class Log(Base):
 
     def __str__(self):
         return str(self.date) + " : " + self.log_type + " : " + self.log_data
+
+class Setting(Base):
+    __tablename__ = 'settings'
+    uid_number = Column(Integer, primary_key = True)
+    send_email = Column(Boolean, default = False)
+
+    def __init__(self, uid_number, send_email):
+        self.uid_number = uid_number
+        self.send_email = send_email
+
+    def __str__(self):
+        return str(self.uid_number) + " : " + str(self.send_email)

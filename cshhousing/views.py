@@ -12,7 +12,7 @@ from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 from pyramid.view import view_config
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import or_, and_
-from .models import DBSession, Room, User, Log
+from .models import DBSession, Room, User, Log, Setting
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import PythonLexer
@@ -32,6 +32,44 @@ def translator(term):
     zpt_renderer = deform.ZPTRendererFactory(
                 [deform_template_dir], translator=translator)
 
+@view_config(route_name='view_settings', renderer='templates/settings.pt')
+def view_settings(request):
+    msg = None
+    settings = request.registry.settings
+    conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
+    admin = conn.isEBoard("jd")
+    conn.close()
+    query = DBSession.query(Setting).filter_by(uid_number = 10387).first()
+    status = False if not query else query.send_email
+    class Schema(colander.Schema):
+        send_email = colander.SchemaNode(
+                colander.Bool(),
+                title = 'Send Email',
+                description = 'This will send emails to your CSH account when changes occur to your housing status',
+	    		widget = deform.widget.CheckboxWidget(),
+                default = status)
+
+    form = deform.Form(Schema(), buttons=('submit', 'cancel'))
+    form_render = form.render()
+    if ('submit', u'submit') in request.POST.items():
+        try:
+            appstruct = form.validate(request.POST.items())
+            if not query:
+                DBSession.add(Setting(10387, appstruct['send_email']))
+            else:
+                DBSession.query(Setting).filter_by(uid_number = 10387).update({'send_email': appstruct['send_email']})
+            status = appstruct['send_email']
+            if status:
+                msg = 'Emails will now be sent to you when your housing status changes'
+            else:
+                msg = 'Emails will now NOT be sent to you anymore'
+            form_render = deform.Form(Schema(), buttons=('submit', 'cancel')).render()
+            transaction.commit()
+        except deform.ValidationFailure, e:
+            form_render = e.render()
+
+    return {'admin': admin, 'form': form_render, 'msg': msg}
+
 @view_config(context=HTTPNotFound, renderer='templates/404.pt')
 def view_404(request):
     settings = request.registry.settings
@@ -39,7 +77,6 @@ def view_404(request):
     admin = conn.isEBoard("jd")
     conn.close()
     return {'admin': admin}
-    return
 
 @view_config(route_name='view_delete_logs')
 def view_delete_logs(request):
@@ -157,6 +194,7 @@ def view_admin(request):
                     validator = colander.Function(
                         lambda value: not value in room_numbers))
             locked = colander.SchemaNode(colander.Bool())
+            single = colander.SchemaNode(colander.Bool())
 
         class New_Rooms(colander.SequenceSchema):
             new_room = New_Room()
@@ -190,18 +228,20 @@ def view_admin(request):
         schema = New_Rooms_Schema()
         form = deform.Form(schema, buttons=('submit',))
         form['new_rooms'].widget = deform.widget.SequenceWidget(min_len=1)
+        form_render = form.render()
         current_rooms_schema = Current_Rooms_Schema()
         current_rooms_form = deform.Form(current_rooms_schema, buttons=('submit',))
+        current_rooms_form_render = current_rooms_form.render()
         msgs = request.session.pop_flash()
-       # new room was given
+
+        # new room was given
         if ('__start__', u'new_rooms:sequence') in request.POST.items():
             try:
                 appstruct = form.validate(request.POST.items())
                 rooms_added = 0
                 for new_room in appstruct['new_rooms']:
                     if not new_room['number'] in room_numbers:
-                        room = Room(new_room['number'])
-                        room.locked = new_room['locked']
+                        room = Room(new_room['number'], new_room['locked'], new_room['single'])
                         DBSession.add(room)
                         room_numbers.add(new_room['number'])
                         rooms_added += 1
@@ -217,7 +257,7 @@ def view_admin(request):
 
             except deform.ValidationFailure, e:
                 msgs.append('Warning: could not added new rooms')
-                form = e.render()
+                form_render = e.render()
 
         # current room was given
         elif ('__start__', u'current_rooms:sequence') in request.POST.items():
@@ -236,7 +276,7 @@ def view_admin(request):
                 msgs.append('Successfully added current room')
             except deform.ValidationFailure, e:
                 msgs.append('Warning: Could not add current room assignment')
-                current_rooms_form = e.render()
+                current_rooms_form_render = e.render()
 
         logs = DBSession.query(Log).limit(100).all()
         logs.reverse()
@@ -251,8 +291,8 @@ def view_admin(request):
                 points_map[int(user[0][1]['uidNumber'][0])] = 5 #user[0][1]['housingPoints'][0]
 
         conn.close()
-        return {'name_map': name_map, 'rooms': rooms, 'form': form, 'users': users,
-                'points_map': points_map, 'current_rooms_form': current_rooms_form,
+        return {'name_map': name_map, 'rooms': rooms, 'form': form_render, 'users': users,
+                'points_map': points_map, 'current_rooms_form': current_rooms_form_render,
                 'msgs': msgs, 'locked': siteClosed, 'logs': logs}
     else:
         conn.close()
@@ -304,6 +344,11 @@ def view_admin_edit(request):
     			title = 'Locked',
 	    		widget = deform.widget.CheckboxWidget(),
                 default = room.locked)
+            single = colander.SchemaNode(
+                colander.Bool(),
+                title = 'Single',
+                widget = deform.widget.CheckboxWidget(),
+                default = room.single)
 
         schema = Schema()
         form = deform.Form(schema, buttons=('submit', 'cancel'))
@@ -316,6 +361,10 @@ def view_admin_edit(request):
                 if name1 == name2 and not name1 == None and not name2 == None:
                     request.session.flash('Warning: Names cannot be the same')
                     return HTTPFound(location=request.route_url('view_admin'))
+
+                if name1 and name2 and appstruct['single']: # can't add 2 people to single room
+                    request.session.flash('Warning: cannot add two people to a single room')
+                    return HTTPFound(location = request.route_url('view_admin'))
 
                 realName1 = realName2 = oldRealName1 = oldRealName2 = None # users' uids for log
                 if not name1 == None or not name1 == None:
@@ -352,7 +401,7 @@ def view_admin_edit(request):
                 # update db
                 DBSession.query(Room).filter_by(number=
                         request.matchdict['room_number']).update({'name1': name1,
-                            'name2': name2, 'locked': appstruct['locked'], 'points': points})
+                            'name2': name2, 'locked': appstruct['locked'], 'points': points, 'single': appstruct['single']})
 
                 if not oldRealName1 == None and not room.name1 == None:
                     oldNameString1 = oldRealName1 + "(" + str(room.name1) + ")"
