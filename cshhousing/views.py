@@ -465,6 +465,9 @@ def view_leave(request):
         return HTTPFound(location=request.route_url('view_main'))
     else:
         room = DBSession.query(Room).filter(or_(Room.name1 == uid_number, Room.name2 == uid_number)).first()
+        if room.locked:
+            request.session.flash("Warning: Room is locked, you cannot leave")
+            return HTTPFound(location = request.route_url('view_main'))
         if not room == None:
             if room.name1 == uid_number:
                 room.name1 = None
@@ -601,6 +604,10 @@ def view_join(request):
                     test_points += .5
                 if join_room.single and appstruct['partnerName'] != none: # room is single and trying to join with roommate
                     request.session.flash("Warning: Cannot join the single with a roommate")
+                    return HTTPFound(location=request.route_url('view_main'))
+                if DBSession.query(Room).filter(or_(Room.name1 == int(appstruct['partnerName'] if appstruct['partnerName'] != none else -1),
+                    Room.name2 == int(appstruct['partnerName'] if appstruct['partnerName'] != none else -1))).first() != None:
+                    request.session.flash("Warning: Roommate is already in another room, they need to leave before you can join a room with them")
                     return HTTPFound(location=request.route_url('view_main'))
                 if join_room.name1 == None and appstruct['partnerName'] == none: # only one person in room and joining alone
                     join_room.name1 = 10387
