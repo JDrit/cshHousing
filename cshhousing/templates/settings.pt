@@ -45,21 +45,20 @@
       <!-- Main component for a primary marketing message or call to action -->
       <div class="jumbotron">
         <h1><img src="${request.static_url('cshhousing:static/images/logo.png')}"/> User Settings</h1>
-	<br />
+	    <br />
         <div tal:condition="msg">
           <div class="alert alert-info">
-	    <button type="button" class="close" data-dismiss="alert">&times;</button>
-	      <strong>${msg}</strong>
-	  </div>
+	        <button type="button" class="close" data-dismiss="alert">&times;</button>
+	        <strong>${msg}</strong>
+	      </div>
         </div>
-	<br />
-	<span tal:replace="structure form"/>
-	<br />
+        <br />
+        <p>All notifications use <a href="https://notify.csh.rit.edu/">notify</a> to contact you. Please sign up to notify to recieve alerts</p>
+        <span tal:replace="structure form"/>
+	    <br />
         <p>
         </p>
       </div>
-
     </div> <!-- /container -->
-
   </body>
 </html>

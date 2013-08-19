@@ -599,6 +599,9 @@ def view_join(request):
                     and_(User.name == 10387, User.number == appstruct['roomNumber']))).first()
                 if squating:
                     test_points += .5
+                if join_room.single and appstruct['partnerName'] != none: # room is single and trying to join with roommate
+                    request.session.flash("Warning: Cannot join the single with a roommate")
+                    return HTTPFound(location=request.route_url('view_main'))
                 if join_room.name1 == None and appstruct['partnerName'] == none: # only one person in room and joining alone
                     join_room.name1 = 10387
                     join_room.points += results[10387]
