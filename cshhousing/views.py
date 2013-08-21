@@ -132,6 +132,10 @@ def view_delete_current(request):
 
     if conn.isEBoard("jd"):
         try:
+            room = DBSession.query(Room).filter(or_(Room.name1 == request.matchdict['name'], Room.name2 == request.matchdict['name'])).first()
+            if room != None and room.points % 1 != 0:
+                room.points -= .5
+            DBSession.add(room)
             DBSession.delete(DBSession.query(User).filter_by(name =
                 request.matchdict['name']).one())
             request.session.flash("Successfully deleated current room assignment")
@@ -267,14 +271,17 @@ def view_admin(request):
                 appstruct = current_rooms_form.validate(request.POST.items())
                 rooms_added = 0
                 for current_room in appstruct['current_rooms']:
-                    if DBSession.query(User).filter_by(name =
-                            current_room['name']).update(
-                                    {'number': current_room['number']}) == 0:
+                    # if the user does not exist yet
+                    if DBSession.query(User).filter_by(name =current_room['name']).update({'number': current_room['number']}) == 0:
                         user = User(current_room['name'], current_room['number'])
                         DBSession.add(user)
                         rooms_added += 1
                         DBSession.add(Log(10387, "current room added",
                             "added room #" + str(current_room['number'])))
+                    room = DBSession.query(Room).filter(or_(Room.name1 == current_room['name'], Room.name2 == current_room['name'])).first()
+                    if room != None and room.points % 1 == 0: # no squatting points already
+                        room.points += .5
+                        DBSession.add(room)
                 msgs.append('Successfully added current room')
             except deform.ValidationFailure, e:
                 msgs.append('Warning: Could not add current room assignment')
