@@ -7,7 +7,7 @@ import datetime
 import transaction
 from docutils.core import publish_parts
 from pkg_resources import resource_filename
-from deform_bootstrap.widget import ChosenSingleWidget
+from deform_bootstrap.widget import ChosenSingleWidget, DateTimeInputWidget
 from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 from pyramid.view import view_config
 from sqlalchemy.orm.exc import NoResultFound
@@ -18,11 +18,20 @@ from pygments.formatters import HtmlFormatter
 from pygments.lexers import PythonLexer
 from translationstring import TranslationStringFactory
 from ldap_conn import ldap_conn
+from datetime import datetime
+from threading import Timer
 
 _ = TranslationStringFactory('deform')
 css = HtmlFormatter().get_style_defs('.highlight')
 
 siteClosed = False # boolean used to determine if users can modify the layout
+closeTime = None   # the time to auto close the site
+lock_thread = None
+
+def lock_site():
+    global siteClosed
+    siteClosed = True
+    print 'SITE IS NOW LOCKED'
 
 def translator(term):
     return get_localizer(get_current_request()).translate(term)
@@ -138,29 +147,9 @@ def view_delete_current(request):
         conn.close()
         return HTTPFound(request.route_url('view_main'))
 
-@view_config(route_name='view_close')
-def view_close(request):
-    settings = request.registry.settings
-    conn = ldap_conn(settings['address'], settings['bind_dn'],
-            settings['password'], settings['base_dn'])
-    global siteClosed
-    if conn.isEBoard("jd"):
-        siteClosed = not siteClosed
-        if siteClosed:
-            request.session.flash("Site is now closed")
-            DBSession.add(Log(10387, "locked", "site was locked"))
-        else:
-            request.session.flash("Site is now open")
-            DBSession.add(Log(10387, "unlocked", "site was unlocked"))
-        transaction.commit()
-        return HTTPFound(request.route_url('view_admin'))
-    else:
-        return HTTPFound(request.route_url('view_main'))
-
-
 @view_config(route_name='view_admin', renderer='templates/admin.pt')
 def view_admin(request):
-    global siteClosed
+    global siteClosed, closeTime, lock_thread
     numbers_validate = []
     names_validate = []
     numbers = []
@@ -225,6 +214,19 @@ def view_admin(request):
         class Current_Rooms_Schema(colander.Schema):
             current_rooms = Current_Rooms()
 
+        class Time_Schema(colander.Schema):
+            lock = colander.SchemaNode(
+                    colander.Boolean(),
+                    missing = colander.required,
+                    default = siteClosed,
+                    description = "Locks the site so no users can change their status")
+            date_time = colander.SchemaNode(
+                    colander.DateTime(),
+                    widget = DateTimeInputWidget(),
+                    missing = None,
+                    default = closeTime,
+                    description = "Give a time if you want the site to auto lock at a given time")
+
         schema = New_Rooms_Schema()
         form = deform.Form(schema, buttons=('submit',))
         form['new_rooms'].widget = deform.widget.SequenceWidget(min_len=1)
@@ -232,8 +234,8 @@ def view_admin(request):
         current_rooms_schema = Current_Rooms_Schema()
         current_rooms_form = deform.Form(current_rooms_schema, buttons=('submit',))
         current_rooms_form_render = current_rooms_form.render()
+        time_set = deform.Form(Time_Schema(), buttons=('submit',))
         msgs = request.session.pop_flash()
-
         # new room was given
         if ('__start__', u'new_rooms:sequence') in request.POST.items():
             try:
@@ -277,7 +279,31 @@ def view_admin(request):
             except deform.ValidationFailure, e:
                 msgs.append('Warning: Could not add current room assignment')
                 current_rooms_form_render = e.render()
-
+        elif ('__start__', u'date_time:mapping') in request.POST.items():
+            try:
+                appstruct = time_set.validate(request.POST.items())
+                siteClosed = bool(appstruct['lock'])
+                closeTime = appstruct['date_time']
+                if lock_thread != None:
+                    lock_thread.cancel()
+                if closeTime != None:
+                    lock_thread = Timer((closeTime.replace(tzinfo=None) - datetime.now()).total_seconds(), lock_site)
+                    lock_thread.start()
+                    if not siteClosed:
+                        msgs.append("Site is OPEN and will close at " + str(closeTime.strftime('%b %d, %Y %I:%M:00 %p')))
+                        DBSession.add(Log(10387, "lock", "site was opened"))
+                    else:
+                        msgs.append("Site is now CLOSED")
+                        DBSession.add(Log(10387, "lock", "site was closed"))
+                else:
+                    if siteClosed:
+                        msgs.append("Site is now CLOSED")
+                        DBSession.add(Log(10387, "lock", "site was closed"))
+                    else:
+                        msgs.append("Site is now OPEN")
+                        DBSession.add(Log(10387, "lock", "site was opened"))
+            except deform.ValidationFailure, e:
+                msgs.append('Warning: Could not parse time inputs')
         logs = DBSession.query(Log).limit(100).all()
         logs.reverse()
         users = DBSession.query(User).all()
@@ -293,7 +319,7 @@ def view_admin(request):
         conn.close()
         return {'name_map': name_map, 'rooms': rooms, 'form': form_render, 'users': users,
                 'points_map': points_map, 'current_rooms_form': current_rooms_form_render,
-                'msgs': msgs, 'locked': siteClosed, 'logs': logs}
+                'msgs': msgs, 'locked': siteClosed, 'logs': logs, 'time': time_set.render()}
     else:
         conn.close()
         return HTTPFound(location=request.route_url('view_main'))
@@ -315,7 +341,7 @@ def view_admin_edit(request):
         rooms = DBSession.query(Room).all()
         for r in rooms:
             if str(r.number) == request.matchdict['room_number']:
-                room = r #DBSession.query(Room).filter_by(number=request.matchdict['room_number']).first()
+                room = r
                 break
         else:
             request.session.flash("Warning: Invalid room number")
@@ -465,13 +491,12 @@ def view_leave(request):
         return HTTPFound(location=request.route_url('view_main'))
     else:
         room = DBSession.query(Room).filter(or_(Room.name1 == uid_number, Room.name2 == uid_number)).first()
-        if room.locked:
-            request.session.flash("Warning: Room is locked, you cannot leave")
-            return HTTPFound(location = request.route_url('view_main'))
         if not room == None:
+            if room.locked:
+                request.session.flash("Warning: Room is locked, you cannot leave")
+                return HTTPFound(location = request.route_url('view_main'))
             if room.name1 == uid_number:
                 room.name1 = None
-
             else:
                 room.name2 = None
 
@@ -492,7 +517,7 @@ def view_leave(request):
 
 @view_config(route_name='view_main', renderer='templates/index.pt')
 def view_main(request):
-    global siteClosed
+    global siteClosed, closeTime
     session = request.session
     msgs = session.pop_flash()
     settings = request.registry.settings
@@ -514,7 +539,9 @@ def view_main(request):
             name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['uid'][0]
     current_room = DBSession.query(User).filter_by(name=conn.get_uid_number("jd")).first()
     current_room = current_room.number if not current_room == None else None
-    return {'name_map': name_map, 'rooms': rooms, 'admin': True, 'points': conn.get_points_uid("jd"), 'current':  current_room, 'next_room': next_room, 'msgs': msgs, 'locked': siteClosed}
+    return {'name_map': name_map, 'rooms': rooms, 'admin': True, 'points': conn.get_points_uid("jd"),
+            'current':  current_room, 'next_room': next_room, 'msgs': msgs,
+            'locked': siteClosed, 'closeTime': closeTime}
 
 @view_config(route_name='view_join', renderer='templates/join.pt')
 def view_join(request):
@@ -609,16 +636,11 @@ def view_join(request):
                     Room.name2 == int(appstruct['partnerName'] if appstruct['partnerName'] != none else -1))).first() != None:
                     request.session.flash("Warning: Roommate is already in another room, they need to leave before you can join a room with them")
                     return HTTPFound(location=request.route_url('view_main'))
-                if join_room.name1 == None and appstruct['partnerName'] == none: # only one person in room and joining alone
-                    join_room.name1 = 10387
-                    join_room.points += results[10387]
-                    if squating:
-                        join_room.points += .5
-                    DBSession.add(join_room)
-                    DBSession.add(Log(10387, "join", "room " + str(appstruct['roomNumber'])))
-                    transaction.commit()
-                elif join_room.name2 == None and appstruct['partnerName'] == none: # only one person in room and joining alone
-                    join_room.name2 = 10387
+                if (join_room.name1 == None or join_room.name2 == None) and appstruct['partnerName'] == none and not join_room.single: # only one person in room and joining alone
+                    if join_room.name1 == None:
+                        join_room.name1 = 10387
+                    else:
+                        join_room.name2 = 10387
                     join_room.points += results[10387]
                     if squating:
                         join_room.points += .5

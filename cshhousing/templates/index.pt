@@ -46,6 +46,66 @@
       <div class="jumbotron">
         <h1><img src="${request.static_url('cshhousing:static/images/logo.png')}"/> Housing Board</h1>
 	  <br />
+          <p class="text-center"><span id="countdown"></span></p>
+          <script tal:condition="closeTime != None and not locked">
+            // set the date we're counting down to
+            var target_date = new Date(${closeTime.year}, ${closeTime.month - 1}, ${closeTime.day}, ${closeTime.hour}, ${closeTime.minute}, ${closeTime.second}).getTime();
+ 
+            // variables for time units
+            var days, hours, minutes, seconds;
+            // get tag element
+            var countdown = document.getElementById("countdown");
+ 
+            // update the tag with id "countdown" every 1 second
+            setInterval(function () {
+              // find the amount of "seconds" between now and target
+              var current_date = new Date().getTime();
+              var seconds_left = (target_date - current_date) / 1000;
+ 
+              // do some time calculations
+              days = parseInt(seconds_left / 86400);
+              seconds_left = seconds_left % 86400;
+     
+              hours = parseInt(seconds_left / 3600);
+              seconds_left = seconds_left % 3600;
+     
+              minutes = parseInt(seconds_left / 60);
+              seconds_left = seconds_left % 60;
+
+              // format countdown string + set tag value
+              text = "";
+	      if (days != 0) {
+		if (days == 1) {
+		  text = text.concat(days + " day, ");
+		} else {
+		  text = text.concat(days + " days, ");
+		}
+	      }
+	      if (!(hours == 0 && days == 0)) {
+		if (hours == 1) {
+                  text = text.concat(hours + " hour, ");
+                } else {		
+                  text = text.concat(hours + " hours, ");
+                }
+              }
+              if (minutes == 0) {
+		if (seconds_left == 0) {
+		  text = text.concat(parseInt(seconds_left) + " second until the portal closes");
+		} else {
+		  text = text.concat(parseInt(seconds_left) + " seconds until the portal closes");
+		}
+	      } else if (minutes == 1) {
+                text = text.concat(minutes + " minute until the portal closes");
+              } else {
+                text = text.concat(minutes + " minutes until the portal closes");
+	      }
+              if (!(days < 0 || hours < 0 || minutes < 0 || seconds_left < 0)) {
+                countdown.innerHTML = text; 
+	      } else {
+		location.reload();
+              }
+            }, 1000);
+          </script>
 	  <div tal:repeat="msg msgs">
 	    <?python type = "alert-danger" if msg.lower().startswith("warning") else "alert-info" ?>
             <div class="alert ${type}">
@@ -54,7 +114,7 @@
 	    </div>
           </div>
 	  <div tal:condition="locked">
-            <h2>Site is now closed, no more changes can be made</h2>
+            <h2 class="text-center">Site is now closed, no more changes can be made</h2>
             <br />
           </div>
           <div class="panel">
@@ -63,7 +123,7 @@
 	    <h4 tal:condition="current is not None">Current Room: ${current}</h4>
 	    <h4 tal:condition="next_room is not None and not locked">Next Year's Room: ${next_room}<div class="pull-right"><a href="/leave"><button type="button" class="btn btn-danger">Leave Room</button></a></div></h4>
           </div>
-
+	  
 	  <table class="table table-hover table-striped">
             <tr>
 	      <td>Room Number:</td>

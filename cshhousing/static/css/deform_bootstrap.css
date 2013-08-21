@@ -1212,7 +1212,7 @@ select:focus:required:invalid:focus {
 .input-append .add-on {
   display: inline-block;
   width: auto;
-  height: 18px;
+  height: 28px;
   min-width: 16px;
   padding: 4px 5px;
   font-weight: normal;
@@ -1264,7 +1264,7 @@ select:focus:required:invalid:focus {
   border-right-color: #ccc;
   border-left-color: #eee;
 }
-
+	
 .input-append .add-on:last-child,
 .input-append .btn:last-child {
   -webkit-border-radius: 0 3px 3px 0;
