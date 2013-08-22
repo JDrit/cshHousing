@@ -131,37 +131,41 @@
 		<div class="tab-pane" id="log">
 		  <h2>View Logs</h2>
 		  <a href="/delete_logs">
-                    <button type="button" class="btn btn-primary btn-lg">Clear Logs</button>
-                  </a>
-                  <table class="table table-hover table-striped">
-	            <tr>
-                      <td>Date:</td>
-	              <td>Name:</td>
-                      <td>Action:</td>
+            <button type="button" class="btn btn-primary btn-lg">Clear Logs</button>
+          </a>
+          <table class="table table-hover table-striped">
+	        <tr>
+              <td>Date:</td>
+	          <td>Name:</td>
+              <td>Action:</td>
 		      <td>Description:</td>
 		    </tr>
 		    <tr tal:repeat="log logs">
 		      <?python s = log.date.strftime('%Y-%m-%d %H:%M') ?>
 		      <?python name = name_map.get(log.uid_number, log.uid_number) ?>
- 	              <td>${s}</td>
+ 	          <td>${s}</td>
 		      <td>${name}</td>
-	              <td>${log.log_type}</td>
-                      <td>${log.log_data}</td>
+	          <td>${log.log_type}</td>
+              <td>${log.log_data}</td>
 		    </tr>
-                  </table>
+          </table>
 		</div>
 		<div class="tab-pane" id="settings">
 		  <h2>Settings</h2>
 		  <br />
-                  <span tal:replace="structure time"/>
+          <span tal:replace="structure time"/>
   	      <script>
 	        $(function () {
-		  $('#myTab a:last').tab('show');
+		      $('#myTab a:last').tab('show');
 	        })
 	      </script>
 	      <br />
-            </div>
+      </div>
+  </div></div></div>
+  <hr>
+  <footer>
+  <p>CSH Housing: created by <a href="jd.batchik.net">J.D. Batchik</a></p>
+  </footer>
     </div> <!-- /container -->
-
   </body>
 </html>

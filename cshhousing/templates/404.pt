@@ -51,7 +51,11 @@
 	  <br />
 	  <br />
       </div>
-
+  <hr>
+  <footer>
+  <p>CSH Housing: created by <a href="jd.batchik.net">J.D. Batchik</a></p>
+  </footer>
+ 
     </div> <!-- /container -->
 
   </body>

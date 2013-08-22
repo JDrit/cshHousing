@@ -16,9 +16,7 @@
   </head>
 
   <body>
-
     <div class="container">
-
       <!-- Static navbar -->
       <div class="navbar">
         <div class="container">
@@ -40,14 +38,13 @@
             </ul>
           </div><!--/.nav-collapse -->
         </div>
-      </div>
 
       <!-- Main component for a primary marketing message or call to action -->
       <div class="jumbotron">
         <h1><img src="${request.static_url('cshhousing:static/images/logo.png')}"/> Housing Board</h1>
-	  <br />
-          <p class="text-center"><span id="countdown"></span></p>
-          <script tal:condition="closeTime != None and not locked">
+	    <br />
+        <p class="text-center"><span id="countdown"></span></p>
+        <script tal:condition="closeTime != None and not locked">
             // set the date we're counting down to
             var target_date = new Date(${closeTime.year}, ${closeTime.month - 1}, ${closeTime.day}, ${closeTime.hour}, ${closeTime.minute}, ${closeTime.second}).getTime();
  
@@ -105,49 +102,60 @@
 		location.reload();
               }
             }, 1000);
-          </script>
-	  <div tal:repeat="msg msgs">
-	    <?python type = "alert-danger" if msg.lower().startswith("warning") else "alert-info" ?>
-            <div class="alert ${type}">
-	      <button type="button" class="close" data-dismiss="alert">&times;</button>
-	      <strong>${msg}</strong>
-	    </div>
+        </script>
+	    <div tal:repeat="msg msgs">
+	      <?python type = "alert-danger" if msg.lower().startswith("warning") else "alert-info" ?>
+          <div class="alert ${type}">
+	        <button type="button" class="close" data-dismiss="alert">&times;</button>
+	        <strong>${msg}</strong>
+	      </div>
+        </div>
+	    <div tal:condition="locked">
+          <h2 class="text-center">Site is now closed, no more changes can be made</h2>
+          <br />
+        </div>
+        <div class="panel">
+          <div class="panel-heading">
+            <h3 class="panel-title">User's Stats</h3>
           </div>
-	  <div tal:condition="locked">
-            <h2 class="text-center">Site is now closed, no more changes can be made</h2>
-            <br />
+          <h4>Housing Points: ${points}</h4>
+	      <h4 tal:condition="current is not None">Current Room: ${current}</h4>
+	      <div>
+            <h4 tal:condition="next_room != None">Next Year's Room: ${next_room}
+              <div tal:condition="not locked" class="pull-right">
+                <a href="/leave">
+                  <button type="button" class="btn btn-danger">Leave Room</button>
+                </a>
+              </div>
+            </h4>
           </div>
-          <div class="panel">
-            <div class="panel-heading"><h3 class="panel-title">User's Stats</h3></div>
-            <h4>Housing Points: ${points}</h4>
-	    <h4 tal:condition="current is not None">Current Room: ${current}</h4>
-	    <div><h4 tal:condition="next_room != None">Next Year's Room: ${next_room}<div tal:condition="not locked" class="pull-right"><a href="/leave"><button type="button" class="btn btn-danger">Leave Room</button></a></div></h4></div>
-          </div>
-	  
-	  <table class="table table-hover table-striped">
-            <tr>
-	      <td>Room Number:</td>
-	      <td>Name 1:</td>
-	      <td>Name 2:</td>
-	      <td>Total Points</td>
-	      <td>Locked:</td>
-            </tr>
+        </div>
+	    <table class="table table-hover table-striped">
+          <tr>
+	        <td>Room Number:</td>
+	        <td>Name 1:</td>
+	        <td>Name 2:</td>
+	        <td>Total Points</td>
+	        <td>Locked:</td>
+          </tr>
 	      <tr tal:repeat="room rooms" tal:attributes="class 'warning' if room.locked else None">
-		<td>${room.number}</td>
-		<?python name1 = name_map.get(room.name1, room.name1) if not room.single else "-SINGLE-" if room.name1 == None else name_map.get(room.name1, room.name1) ?>
-		<td>${name1}</td>
-		<?python name2 = name_map.get(room.name2, room.name2) if not room.single else "-SINGLE-" if room.name2 == None and name1 != "-SINGLE-" else name_map.get(room.name2, room.name2) ?>
-		<td>${name2}</td>
-		<td>${room.points}</td>
-		<td>${room.locked}</td>
-	      </tr>
-            </table>
-	<br />
-        <p>
-        </p>
-      </div>
-
-    </div> <!-- /container -->
-
-  </body>
+		    <td>${room.number}</td>
+		    <?python name1 = name_map.get(room.name1, room.name1) if not room.single else "-SINGLE-" if room.name1 == None else name_map.get(room.name1, room.name1) ?>
+		    <td>${name1}</td>
+		    <?python name2 = name_map.get(room.name2, room.name2) if not room.single else "-SINGLE-" if room.name2 == None and name1 != "-SINGLE-" else name_map.get(room.name2, room.name2) ?>
+		    <td>${name2}</td>
+		    <td>${room.points}</td>
+		    <td>${room.locked}</td>
+          </tr>
+        </table>
+	   <br />
+       <p></p>
+     </div>
+ </div>
+   <hr>
+   <footer>
+   <p>CSH Housing: created by <a href="jd.batchik.net">J.D. Batchik</a></p>
+   </footer>
+   </div> <!-- /container -->
+ </body>
 </html>
