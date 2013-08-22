@@ -38,7 +38,7 @@
             </ul>
           </div><!--/.nav-collapse -->
         </div>
-
+      </div>
       <!-- Main component for a primary marketing message or call to action -->
       <div class="jumbotron">
         <h1><img src="${request.static_url('cshhousing:static/images/logo.png')}"/> Housing Board</h1>
@@ -151,7 +151,6 @@
 	   <br />
        <p></p>
      </div>
- </div>
    <hr>
    <footer>
    <p>CSH Housing: created by <a href="jd.batchik.net">J.D. Batchik</a></p>
