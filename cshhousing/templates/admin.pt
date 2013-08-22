@@ -101,11 +101,12 @@
 		</div>
 	        <div class="tab-pane" id="add">
 		  <h2>Add Room</h2>
+                  <h4><em>these are the rooms that will be available next year for people to sign up for</em></h4>
                   <span tal:replace="structure form"/>
 		</div>
 		<div class="tab-pane" id="current">
 		  <h2>Current room assignments</h2>
-		  <h4><em>used for determine squattings points</em></h4>
+		  <h4><em>used to determine squattings points</em></h4>
 		  <table class="table table-hover table-striped">
                     <tr>
                       <td>Member's Name</td>

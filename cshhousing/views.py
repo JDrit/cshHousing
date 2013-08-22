@@ -132,12 +132,16 @@ def view_delete_current(request):
 
     if conn.isEBoard("jd"):
         try:
-            room = DBSession.query(Room).filter(or_(Room.name1 == request.matchdict['name'], Room.name2 == request.matchdict['name'])).first()
-            if room != None and room.points % 1 != 0:
-                room.points -= .5
-            DBSession.add(room)
-            DBSession.delete(DBSession.query(User).filter_by(name =
-                request.matchdict['name']).one())
+            DBSession.delete(DBSession.query(User).filter_by(name = request.matchdict['name']).one())
+            room = DBSession.query(Room).filter(or_(Room.name1 == int(request.matchdict['name']), Room.name2 == int(request.matchdict['name']))).first()
+            if room != None:
+                room.points = sum(conn.get_points_uidNumbers([room.name1, room.name2]).values())
+                if not DBSession.query(User).filter(or_( # squatting points
+                    and_(User.name == room.name1, User.number == room.number),
+                    and_(User.name == room.name2, User.number == room.number)
+                    )).first() == None:
+                    room.points += .5
+                DBSession.add(room)
             request.session.flash("Successfully deleated current room assignment")
             result = conn.search("uidNumber=" + request.matchdict['name'])
             uid = result[0][0][1]['uid'][0] + "(" + str(request.matchdict['name']) + ")" if result != [] else str(request.matchdict['name'])
@@ -278,14 +282,21 @@ def view_admin(request):
                         rooms_added += 1
                         DBSession.add(Log(10387, "current room added",
                             "added room #" + str(current_room['number'])))
+
                     room = DBSession.query(Room).filter(or_(Room.name1 == current_room['name'], Room.name2 == current_room['name'])).first()
-                    if room != None and room.points % 1 == 0: # no squatting points already
-                        room.points += .5
+                    if room != None:
+                        room.points = sum(conn.get_points_uidNumbers([room.name1, room.name2]).values())
+                        if not DBSession.query(User).filter(or_( # squatting points
+                            and_(User.name == room.name1, User.number == room.number),
+                            and_(User.name == room.name2, User.number == room.number)
+                            )).first() == None:
+                            room.points += .5
                         DBSession.add(room)
                 msgs.append('Successfully added current room')
             except deform.ValidationFailure, e:
                 msgs.append('Warning: Could not add current room assignment')
                 current_rooms_form_render = e.render()
+        # settings were given
         elif ('__start__', u'date_time:mapping') in request.POST.items():
             try:
                 appstruct = time_set.validate(request.POST.items())
