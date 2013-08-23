@@ -38,13 +38,15 @@ class User(Base):
     __tablename__ = 'users'
     name = Column(Integer, primary_key = True)
     number = Column(Integer)
+    send = Column(Boolean)
 
-    def __init__(self, name, number):
+    def __init__(self, name, number = None, send = False):
         self.name = name
         self.number = number
+        self.send = False
 
     def __str__(self):
-        return str(self.name) + ", " + str(self.number)
+        return str(self.name) + ", " + str(self.number) + ", " + str(self.send)
 
 class Log(Base):
     __tablename__ = 'logs'
@@ -61,15 +63,3 @@ class Log(Base):
 
     def __str__(self):
         return str(self.date) + " : " + self.log_type + " : " + self.log_data
-
-class Setting(Base):
-    __tablename__ = 'settings'
-    uid_number = Column(Integer, primary_key = True)
-    send_email = Column(Boolean, default = False)
-
-    def __init__(self, uid_number, send_email):
-        self.uid_number = uid_number
-        self.send_email = send_email
-
-    def __str__(self):
-        return str(self.uid_number) + " : " + str(self.send_email)

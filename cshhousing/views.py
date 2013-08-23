@@ -12,7 +12,7 @@ from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 from pyramid.view import view_config
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import or_, and_
-from .models import DBSession, Room, User, Log, Setting
+from .models import DBSession, Room, User, Log
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import PythonLexer
@@ -26,18 +26,18 @@ css = HtmlFormatter().get_style_defs('.highlight')
 
 siteClosed = False # boolean used to determine if users can modify the layout
 closeTime = None   # the time to auto close the site
-lock_thread = None
+lock_thread = None # this is the thread that will lock the site at a given time
 
 def lock_site():
+    """
+    This is the function that is run as a delay to lock the site at a given time
+    """
     global siteClosed
     siteClosed = True
-    print 'SITE IS NOW LOCKED'
 
 def translator(term):
     return get_localizer(get_current_request()).translate(term)
-
     deform_template_dir = resource_filename('deform', 'templates/')
-
     zpt_renderer = deform.ZPTRendererFactory(
                 [deform_template_dir], translator=translator)
 
@@ -48,8 +48,9 @@ def view_settings(request):
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
     admin = conn.isEBoard(request.headers['X-Webauth-User'])
     conn.close()
-    query = DBSession.query(Setting).filter_by(uid_number = 10387).first()
-    status = False if not query else query.send_email
+    query = DBSession.query(User).filter_by(name = 10387).first()
+    print query
+    status = False if not query else query.send
     class Schema(colander.Schema):
         send_email = colander.SchemaNode(
                 colander.Bool(),
@@ -64,14 +65,24 @@ def view_settings(request):
         try:
             appstruct = form.validate(request.POST.items())
             if not query:
-                DBSession.add(Setting(10387, appstruct['send_email']))
+                DBSession.add(User(10387, send = appstruct['send_email']))
             else:
-                DBSession.query(Setting).filter_by(uid_number = 10387).update({'send_email': appstruct['send_email']})
+                DBSession.query(User).filter_by(name = 10387).update({'send': appstruct['send_email']})
             status = appstruct['send_email']
             if status:
                 msg = 'Emails will now be sent to you when your housing status changes'
             else:
                 msg = 'Emails will now NOT be sent to you anymore'
+
+            # class is defined again to allow for the default to be changed to the new setting
+            class Schema(colander.Schema):
+                send_email = colander.SchemaNode(
+                        colander.Bool(),
+                        title = 'Send Email',
+                        description = 'This will send emails to your CSH account when changes occur to your housing status',
+        	    		widget = deform.widget.CheckboxWidget(),
+                        default = status)
+
             form_render = deform.Form(Schema(), buttons=('submit', 'cancel')).render()
             transaction.commit()
         except deform.ValidationFailure, e:
@@ -292,7 +303,10 @@ def view_admin(request):
                             )).first() == None:
                             room.points += .5
                         DBSession.add(room)
-                msgs.append('Successfully added current room')
+                if len(appstruct['current_room']) == 1:
+                    msgs.append('Successfully added current room')
+                else:
+                    msgs.append('Successfully added current rooms')
             except deform.ValidationFailure, e:
                 msgs.append('Warning: Could not add current room assignment')
                 current_rooms_form_render = e.render()
@@ -535,6 +549,7 @@ def view_leave(request):
 
 @view_config(route_name='view_main', renderer='templates/index.pt')
 def view_main(request):
+
     global siteClosed, closeTime
     session = request.session
     msgs = session.pop_flash()
