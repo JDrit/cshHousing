@@ -49,7 +49,6 @@ def view_settings(request):
     admin = conn.isEBoard(request.headers['X-Webauth-User'])
     conn.close()
     query = DBSession.query(User).filter_by(name = 10387).first()
-    print query
     status = False if not query else query.send
     class Schema(colander.Schema):
         send_email = colander.SchemaNode(
@@ -143,7 +142,12 @@ def view_delete_current(request):
 
     if conn.isEBoard(request.headers['X-Webauth-User']):
         try:
-            DBSession.delete(DBSession.query(User).filter_by(name = request.matchdict['name']).one())
+            user = DBSession.query(User).filter_by(name = request.matchdict['name']).one()
+            if not user.send:
+                DBSession.delete(user)
+            else:
+                DBSession.query(User).update({'number': None}).one()
+
             room = DBSession.query(Room).filter(or_(Room.name1 == int(request.matchdict['name']), Room.name2 == int(request.matchdict['name']))).first()
             if room != None:
                 room.points = sum(conn.get_points_uidNumbers([room.name1, room.name2]).values())
@@ -177,7 +181,7 @@ def view_admin(request):
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
 
     if conn.isEBoard(request.headers['X-Webauth-User']):
-        rooms = DBSession.query(Room).all()
+        rooms = DBSession.query(Room).order_by(Room.number).all()
         room_numbers = set() # used to verify that same room # are not being used
         name_map = dict()
         points_map = dict()
@@ -340,7 +344,10 @@ def view_admin(request):
         logs.reverse()
         users = DBSession.query(User).all()
         for user in users:
-            ids.add(user.name)
+            if user.number == None:
+                users.remove(user)
+            else:
+                ids.add(user.name)
         for log in logs:
             ids.add(log.uid_number)
         if not ids == set():
@@ -370,7 +377,7 @@ def view_admin_edit(request):
 
         if ('cancel', u'cancel') in request.POST.items():
             return HTTPFound(location=request.route_url('view_admin'))
-        rooms = DBSession.query(Room).all()
+        rooms = DBSession.query(Room).order_by(Room.number).all()
         for r in rooms:
             if str(r.number) == request.matchdict['room_number']:
                 room = r
@@ -555,7 +562,7 @@ def view_main(request):
     msgs = session.pop_flash()
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
-    rooms = DBSession.query(Room).all()
+    rooms = DBSession.query(Room).order_by(Room.number).all()
     name_map = dict()
     ids = []
     next_room = None
@@ -573,7 +580,9 @@ def view_main(request):
             name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['uid'][0]
     current_room = DBSession.query(User).filter_by(name=conn.get_uid_number(uid)).first()
     current_room = current_room.number if not current_room == None else None
-    return {'name_map': name_map, 'rooms': rooms, 'admin': True, 'points': conn.get_points_uid(uid),
+    admin = conn.isEBoard(uid)
+    conn.close()
+    return {'name_map': name_map, 'rooms': rooms, 'admin': admin, 'points': conn.get_points_uid(uid),
             'current':  current_room, 'next_room': next_room, 'msgs': msgs,
             'locked': siteClosed, 'closeTime': closeTime}
 
@@ -602,7 +611,7 @@ def view_join(request):
 
     uidNumber = conn.get_uid_number(uid)
     admin = conn.isEBoard(uid)
-    for room in DBSession.query(Room).all():
+    for room in DBSession.query(Room).order_by(Room.number).all():
         if not room.locked:
             numbers_validate.append(room.number)
             numbers.append((room.number, room.number))
@@ -630,7 +639,7 @@ def view_join(request):
                 missing=colander.required)
         partnerName = colander.SchemaNode(
                 colander.String(),
-                title='Roommate\' name',
+                title='Roommate\'s name',
                 widget=ChosenSingleWidget(values=names),
                 validator=colander.OneOf(names_validate),
                 missing=colander.required,
@@ -649,18 +658,15 @@ def view_join(request):
                 request.session.flash('Warning: You are already in room ' + str(current_room) + '. Leave that room before joining another')
                 return HTTPFound(location=request.route_url('view_main'))
             else:
-                test_points = 0 # the amount of points for the people trying to join
                 points = []
                 if not appstruct['partnerName'] == none:
                     points.append(appstruct['partnerName'])
                 points.append(10387) # the current user's uidNumber
                 results = conn.get_points_uidNumbers(points)
-
-                test_points += results.get(appstruct['partnerName'], 0)
-                test_points += results[10387]
+                test_points = sum(results.values())
                 # squatting points
                 squating = DBSession.query(User).filter(or_(
-                    and_(User.name == appstruct['partnerName'], User.number == appstruct['roomNumber']),
+                    and_(User.name == appstruct['partnerName'] if appstruct['partnerName'] != none else None, User.number == appstruct['roomNumber']),
                     and_(User.name == 10387, User.number == appstruct['roomNumber']))).first()
                 if squating:
                     test_points += .5
@@ -676,7 +682,7 @@ def view_join(request):
                         join_room.name1 = 10387
                     else:
                         join_room.name2 = 10387
-                    join_room.points += results[10387]
+                    join_room.points = results[10387]
                     if squating:
                         join_room.points += .5
                     DBSession.add(join_room)

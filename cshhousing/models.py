@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, Boolean, DateTime, Date
+from sqlalchemy import Column, Integer, Text, Boolean, DateTime, Date, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 from zope.sqlalchemy import ZopeTransactionExtension
@@ -23,7 +23,7 @@ class Room(Base):
     name1 = Column(Integer)
     name2 = Column(Integer)
     locked = Column(Boolean, default = False)
-    points = Column(Integer, default = 0)
+    points = Column(Float, default = 0)
     single = Column(Boolean, default = False)
 
     def __init__(self, number, locked = False, single = False):

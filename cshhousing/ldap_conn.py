@@ -84,7 +84,7 @@ class ldap_conn:
         Returns:
             the housing points for the user
         """
-        int(self.search("uid=" + uid)[0][0][1]['housingPoints'][0])
+#        int(self.search("uid=" + uid)[0][0][1]['housingPoints'][0])
         return 2
 
     def get_points_uidNumbers(self, uids):
