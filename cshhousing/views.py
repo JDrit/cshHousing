@@ -303,7 +303,7 @@ def view_admin(request):
                             )).first() == None:
                             room.points += .5
                         DBSession.add(room)
-                if len(appstruct['current_room']) == 1:
+                if len(appstruct['current_rooms']) == 1:
                     msgs.append('Successfully added current room')
                 else:
                     msgs.append('Successfully added current rooms')

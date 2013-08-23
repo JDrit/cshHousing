@@ -98,8 +98,8 @@ class ldap_conn:
         """
         dic = {}
         for result in self.search_uids(uids):
-            dic[result[0][0][1]['uid'][0]] = 0
-            #dic[result[0][0][1]['uid'][0]] = int(result[0][0][1]['housingPoints'][0])
+            dic[int(result[0][1]['uidNumber'][0])] = 2
+            #dic[int(result[0][1]['uidNumber'][0])] = int(result[0][1]['housingPoints'][0])
         return dic
 
     def get_uid_number(self, username):
