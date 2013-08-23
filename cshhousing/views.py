@@ -305,7 +305,7 @@ def view_admin(request):
                 if lock_thread != None:
                     lock_thread.cancel()
                 if closeTime != None:
-                    lock_thread = Timer((closeTime.replace(tzinfo=None) - datetime.now()).total_seconds(), lock_site)
+                    lock_thread = Timer((closeTime.replace(tzinfo=None) - datetime.now()).seconds, lock_site)
                     lock_thread.start()
                     if not siteClosed:
                         msgs.append("Site is OPEN and will close at " + str(closeTime.strftime('%b %d, %Y %I:%M:00 %p')))

@@ -44,7 +44,7 @@
 
       <!-- Main component for a primary marketing message or call to action -->
       <div class="jumbotron">
-        <h1><img src="${request.static_url('cshhousing:static/images/logo.png')}"/> User Settings</h1>
+        <h1><img src="/static/images/logo.png"/> User Settings</h1>
 	    <br />
         <div tal:condition="msg">
           <div class="alert alert-info">
