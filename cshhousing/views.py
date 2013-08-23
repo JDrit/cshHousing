@@ -46,7 +46,7 @@ def view_settings(request):
     msg = None
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
-    admin = conn.isEBoard("jd")
+    admin = conn.isEBoard(request.headers['X-Webauth-User'])
     conn.close()
     query = DBSession.query(Setting).filter_by(uid_number = 10387).first()
     status = False if not query else query.send_email
@@ -83,7 +83,7 @@ def view_settings(request):
 def view_404(request):
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
-    admin = conn.isEBoard("jd")
+    admin = conn.isEBoard(request.headers['X-Webauth-User'])
     conn.close()
     return {'admin': admin}
 
@@ -92,7 +92,7 @@ def view_delete_logs(request):
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'],
             settings['password'], settings['base_dn'])
-    if conn.isEBoard("jd"):
+    if conn.isEBoard(request.headers['X-Webauth-User']):
         DBSession.query(Log).delete()
         transaction.commit()
         conn.close()
@@ -109,7 +109,7 @@ def view_delete(request):
     conn = ldap_conn(settings['address'], settings['bind_dn'],
             settings['password'], settings['base_dn'])
 
-    if conn.isEBoard("jd"):
+    if conn.isEBoard(request.headers['X-Webauth-User']):
         try:
             DBSession.delete(DBSession.query(Room).filter_by(
                 number = request.matchdict['room_number']).one())
@@ -130,7 +130,7 @@ def view_delete_current(request):
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
 
-    if conn.isEBoard("jd"):
+    if conn.isEBoard(request.headers['X-Webauth-User']):
         try:
             DBSession.delete(DBSession.query(User).filter_by(name = request.matchdict['name']).one())
             room = DBSession.query(Room).filter(or_(Room.name1 == int(request.matchdict['name']), Room.name2 == int(request.matchdict['name']))).first()
@@ -165,7 +165,7 @@ def view_admin(request):
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
 
-    if conn.isEBoard("jd"):
+    if conn.isEBoard(request.headers['X-Webauth-User']):
         rooms = DBSession.query(Room).all()
         room_numbers = set() # used to verify that same room # are not being used
         name_map = dict()
@@ -352,7 +352,7 @@ def view_admin_edit(request):
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
 
-    if conn.isEBoard("jd"):
+    if conn.isEBoard(request.headers['X-Webauth-User']):
 
         if ('cancel', u'cancel') in request.POST.items():
             return HTTPFound(location=request.route_url('view_admin'))
@@ -544,7 +544,8 @@ def view_main(request):
     name_map = dict()
     ids = []
     next_room = None
-    uid_number = conn.get_uid_number("jd")
+    uid = request.headers['X-Webauth-User']
+    uid_number = conn.get_uid_number(uid)
     for room in rooms:
         if room.name1 == uid_number or room.name2 == uid_number:
             next_room = room.number
@@ -555,9 +556,9 @@ def view_main(request):
     if not ids == []:
         for user in conn.search_uids(ids):
             name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['uid'][0]
-    current_room = DBSession.query(User).filter_by(name=conn.get_uid_number("jd")).first()
+    current_room = DBSession.query(User).filter_by(name=conn.get_uid_number(uid)).first()
     current_room = current_room.number if not current_room == None else None
-    return {'name_map': name_map, 'rooms': rooms, 'admin': True, 'points': conn.get_points_uid("jd"),
+    return {'name_map': name_map, 'rooms': rooms, 'admin': True, 'points': conn.get_points_uid(uid),
             'current':  current_room, 'next_room': next_room, 'msgs': msgs,
             'locked': siteClosed, 'closeTime': closeTime}
 
@@ -574,6 +575,7 @@ def view_join(request):
     current_room = None # the current room for the user
     current_room_rm = None # the current room for the roommate
 
+    uid = request.headers['X-Webauth-User']
     if siteClosed:
         return HTTPFound(location=request.route_url('view_main'))
 
@@ -583,8 +585,8 @@ def view_join(request):
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
 
-    uidNumber = conn.get_uid_number("jd")
-    admin = conn.isEBoard("jd")
+    uidNumber = conn.get_uid_number(uid)
+    admin = conn.isEBoard(uid)
     for room in DBSession.query(Room).all():
         if not room.locked:
             numbers_validate.append(room.number)
@@ -600,7 +602,7 @@ def view_join(request):
 
 
     for element in conn.get_active():
-        if not element[0][1]['uid'][0] == "jd":
+        if not element[0][1]['uid'][0] == uid:
             names.append((element[0][1]['uidNumber'][0], element[0][1]['uid'][0]))
             names_validate.append(element[0][1]['uidNumber'][0])
 
