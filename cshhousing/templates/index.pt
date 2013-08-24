@@ -30,7 +30,7 @@
             <ul class="nav navbar-nav">
               <li class="active"><a href="/">Home</a></li>
               <li tal:condition="not locked"><a href="/join">Join Room</a></li>
-              <li tal:condition="not locked"><a href="/leave">Leave Room</a></li>
+              <li tal:condition="locked"><a href="/leave">Leave Room</a></li>
             </ul>
             <ul class="nav navbar-nav pull-right">
 	      <li><a href="/settings">Settings</a></li>
