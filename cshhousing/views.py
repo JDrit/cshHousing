@@ -21,6 +21,7 @@ from ldap_conn import ldap_conn
 from datetime import datetime
 from threading import Timer
 import subprocess
+import requests
 
 _ = TranslationStringFactory('deform')
 css = HtmlFormatter().get_style_defs('.highlight')
@@ -38,6 +39,11 @@ def lock_site():
 
 def get_uid_number(uid):
     return int(subprocess.Popen(["id","-u", uid],stdout=subprocess.PIPE).communicate()[0])
+
+def send_notification(uid, message, request):
+    requests.get("https://www.csh.rit.edu/~kdolan/notify/apiBridge.php?username="
+            + uid + "&notification=" + message.replace(" ", "+") + "&apiKey=" +
+            request.registry.settings['api_key'], verify = False)
 
 def translator(term):
     return get_localizer(get_current_request()).translate(term)
@@ -122,7 +128,9 @@ def view_delete(request):
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'],
             settings['password'], settings['base_dn'])
-
+    if not request.matchdict['room_number'].isdigit():
+        request.session.flash("Warning: STOP FUCKING WITH MY SYSTEM")
+        return HTTPFound(request.route_url('view_main'))
     if conn.isEBoard(request.headers['X-Webauth-User']):
         try:
             DBSession.delete(DBSession.query(Room).filter_by(
@@ -134,9 +142,10 @@ def view_delete(request):
             transaction.commit()
         except NoResultFound, e:
             request.session.flash("Warning: Could not delete room")
-
+        conn.close()
         return HTTPFound(request.route_url('view_admin'))
     else:
+        conn.close()
         return HTTPFound(request.route_url('view_main'))
 
 @view_config(route_name='view_delete_current')
@@ -374,6 +383,12 @@ def view_admin_edit(request):
     numbers = []
     names = []
     empty = 'empty'
+
+    # any input that is not an actual number
+    if not request.matchdict['room_number'].isdigit():
+        request.session.flash("Warning: STOP FUCKING WITH MY SYSTEM")
+        get_uid_number(request.headers['X-Webauth-User'])
+
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
 
@@ -671,7 +686,8 @@ def view_join(request):
                 test_points = sum(results.values())
                 # squatting points
                 squating = DBSession.query(User).filter(or_(
-                    and_(User.name == appstruct['partnerName'] if appstruct['partnerName'] != none else None, User.number == appstruct['roomNumber']),
+                    and_(User.name == appstruct['partnerName'] if appstruct['partnerName'] != none else None,
+                        User.number == appstruct['roomNumber']),
                     and_(User.name == uid_number, User.number == appstruct['roomNumber']))).first()
                 if squating:
                     test_points += .5
@@ -682,30 +698,23 @@ def view_join(request):
                     Room.name2 == int(appstruct['partnerName'] if appstruct['partnerName'] != none else -1))).first() != None:
                     request.session.flash("Warning: Roommate is already in another room, they need to leave before you can join a room with them")
                     return HTTPFound(location=request.route_url('view_main'))
-                if (join_room.name1 == None or join_room.name2 == None) and appstruct['partnerName'] == none and not join_room.single: # only one person in room and joining alone
+
+                # only one person in room and joining alone
+                if (join_room.name1 == None or join_room.name2 == None) and appstruct['partnerName'] == none and not join_room.single:
+
                     if join_room.name1 == None:
                         join_room.name1 = uid_number
                     else:
                         join_room.name2 = uid_number
-                    join_room.points = results[uid_number]
+                    join_room.points += results[uid_number]
                     if squating:
                         join_room.points += .5
                     DBSession.add(join_room)
+                    send_notification(uid, "You have joined room " + str(appstruct['roomNumber']), request)
                     DBSession.add(Log(uid_number, "join", "room " + str(appstruct['roomNumber'])))
                     transaction.commit()
                 elif join_room.points < test_points: # if new people beat out current ocupents
-                    old_room = DBSession.query(Room).filter(or_(
-                        Room.name1 == appstruct['partnerName'],
-                        Room.name2 == appstruct['partnerName'])).first();
-                    if not old_room == None: # the other person was already in a room
-                        if room.name1 == appstruct['partnerName']:
-                            old_room.name1 = None
-                        else:
-                            old_room.name2 = None
-                        # removes the points from the user's old room
-                        old_room.points -= conn.get_points_uid(appstruct['partnerName'])
-                        DBSession.add(room)
-                    if appstruct['partnerName'] == none: # user joined alone
+                    if appstruct['partnerName'] == none: # user joined alone and kicked current members
                         # users were kicked
                         if not join_room.name1 == None or not join_room.name2 == None:
                             users = str(join_room.name1) if not join_room.name1 == None else ""
@@ -715,6 +724,19 @@ def view_join(request):
                                 users += " & " + str(join_room.name2)
                             DBSession.add(Log(uid_number, "join",
                                 "user join room " + str(appstruct['roomNumber']) + ", kicking " + users))
+                            uid1 = None
+                            uid2 = None
+                            for name in names:
+                                if names[0] == str(room.name1):
+                                    uid1 = names[1]
+                                elif names[0] == str(room.name2):
+                                    uid2 = names[1]
+                                if uid != None and uid != None:
+                                    break
+                            if uid1 != None:
+                                send_notification(uid1, "You have been kicked from room " + str(appstruct['roomNumber']), request)
+                            if uid2 != None:
+                                send_notification(uid2, "You have been kicked from room " + str(appstruct['roomNumber']), request)
                         else:
                            DBSession.add(Log(uid_number, "join", "user joined room alone"))
                     else: # user joined with a roommate
@@ -732,6 +754,15 @@ def view_join(request):
                                     kickString1 = name[1]
                                 if name[0] == str(join_room.name2):
                                     kickString2 = name[1]
+
+                            send_notification(kickString1, "You have been kicked from room " + str(appstruct['roomNumber']) +
+                                    " by " + uid + " and " + partnerString, request)
+
+                            send_notification(kickString2, "You have been kicked from room " + str(appstruct['roomNumber']) +
+                                    " by " + uid + " and " + partnerString, request)
+
+                            send_notification(partnerString, "You have joined room " + str(appstruct['roomNumber']) + " with " + uid, request)
+
                             if not kickString1 == None and not join_room.name1 == None:
                                 kickString = kickString1 + "(" + str(join_room.name1) + ")"
                             elif not join_room.name1 == None:
@@ -761,21 +792,14 @@ def view_join(request):
                         else: # joined with partner and did not kick anyone
                             for name in names:
                                 if name[0] == str(appstruct['partnerName']):
+                                    send_notification(name[1], "Joined room " + str(appstruct['roomNumber']) + " with " + uid, request)
                                     DBSession.add(Log(uid_number, "join", "room " + str(appstruct['roomNumber']) + " with " +
                                             name[1] + "(" + str(appstruct['partnerName']) + ")"))
                                     break
                             else:
                                 DBSession.add(Log(uid_number, "join", "room " + str(appstruct['roomNumber']) + " with " +
                                     str(appstruct['partnerName'])))
-                    partnerRoom = DBSession.query(Room).filter(or_(
-                        Room.name1 == appstruct['partnerName'],
-                            Room.name2 == appstruct['partnerName'])).first()
-                    if partnerRoom:
-                        if partnerRoom.name1 == int(appstruct['partnerName']):
-                            partnerRoom.name1 = None
-                        else:
-                            partnerRoom.name2 = None
-                        DBSession.add(partnerRoom) # removes the partner from their old room
+
                     DBSession.query(Room).filter_by(number=appstruct['roomNumber']).update(
                             {"name2": int(appstruct['partnerName'])
                                 if not appstruct['partnerName'] == none else None,
