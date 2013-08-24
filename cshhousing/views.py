@@ -480,12 +480,21 @@ def view_admin_edit(request):
                     if room.name2 in to_remove:
                         room.name2 = None
                     room.points = sum(conn.get_points_uidNumbers([room.name1, room.name2]).values())
+
                     DBSession.add(room)
 
                 # update db
                 DBSession.query(Room).filter_by(number=
                         request.matchdict['room_number']).update({'name1': name1,
                             'name2': name2, 'locked': appstruct['locked'], 'points': points, 'single': appstruct['single']})
+                if oldRealName1 != None:
+                    send_notification(oldRealName1, "You have been removed from room " + str(room.number) + " by an admin", request)
+                if oldRealName2 != None:
+                    send_notification(oldRealName2, "You have been removed from room " + str(room.number) + " by an admin", request)
+                if realName1 != None:
+                    send_notification(realName1, "You have been added to room " + str(room.number) + " by an admin", request)
+                if realName2 != None:
+                    send_notification(realName2, "You have been added to room " + str(room.number) + " by an admin", request)
 
                 if not oldRealName1 == None and not room.name1 == None:
                     oldNameString1 = oldRealName1 + "(" + str(room.name1) + ")"
