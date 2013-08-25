@@ -40,7 +40,6 @@
               <li><a href="/leave">Leave Room</a></li>
             </ul>
             <ul class="nav navbar-nav pull-right">
-	      <li><a href="/settings">Settings</a></li>
               <li class="active"><a href="/admin">Admin</a></li>
             </ul>
           </div><!--/.nav-collapse -->

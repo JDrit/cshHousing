@@ -33,7 +33,6 @@
               <li tal:condition="next_room"><a href="/leave">Leave Room</a></li>
             </ul>
             <ul class="nav navbar-nav pull-right">
-	      <li><a href="/settings">Settings</a></li>
               <li tal:condition="admin"><a href="/admin">Admin</a></li>
             </ul>
           </div><!--/.nav-collapse -->
@@ -42,7 +41,9 @@
       <!-- Main component for a primary marketing message or call to action -->
       <div class="jumbotron">
         <h1><img src="/static/images/logo.png"/> Housing Board</h1>
-	    <br />
+        <br />
+        <?python format = closeTime.strftime("%b %d, %Y %I:%M %p") if closeTime != None else ""?>
+        <p tal:condition="closeTime" class="text-center">Site will lock at ${format}</p>
         <p class="text-center"><span id="countdown"></span></p>
         <script tal:condition="closeTime != None and not locked">
             // set the date we're counting down to

@@ -51,54 +51,6 @@ def translator(term):
     zpt_renderer = deform.ZPTRendererFactory(
                 [deform_template_dir], translator=translator)
 
-@view_config(route_name='view_settings', renderer='templates/settings.pt')
-def view_settings(request):
-    msg = None
-    settings = request.registry.settings
-    conn = ldap_conn(settings['address'], settings['bind_dn'], settings['password'], settings['base_dn'])
-    admin = conn.isEBoard(request.headers['X-Webauth-User'])
-    conn.close()
-    query = DBSession.query(User).filter_by(name = get_uid_number(request.headers['X-Webauth-User'])).first()
-    status = False if not query else query.send
-    class Schema(colander.Schema):
-        send_email = colander.SchemaNode(
-                colander.Bool(),
-                title = 'Send Email',
-                description = 'This will send emails to your CSH account when changes occur to your housing status',
-	    		widget = deform.widget.CheckboxWidget(),
-                default = status)
-
-    form = deform.Form(Schema(), buttons=('submit', 'cancel'))
-    form_render = form.render()
-    if ('submit', u'submit') in request.POST.items():
-        try:
-            appstruct = form.validate(request.POST.items())
-            if not query:
-                DBSession.add(User(get_uid_number(request.headers['X-Webauth-User']), send = appstruct['send_email']))
-            else:
-                DBSession.query(User).filter_by(name = get_uid_number(request.headers['X-Webauth-User'])).update({'send': appstruct['send_email']})
-            status = appstruct['send_email']
-            if status:
-                msg = 'Emails will now be sent to you when your housing status changes'
-            else:
-                msg = 'Emails will now NOT be sent to you anymore'
-
-            # class is defined again to allow for the default to be changed to the new setting
-            class Schema(colander.Schema):
-                send_email = colander.SchemaNode(
-                        colander.Bool(),
-                        title = 'Send Email',
-                        description = 'This will send emails to your CSH account when changes occur to your housing status',
-        	    		widget = deform.widget.CheckboxWidget(),
-                        default = status)
-
-            form_render = deform.Form(Schema(), buttons=('submit', 'cancel')).render()
-            transaction.commit()
-        except deform.ValidationFailure, e:
-            form_render = e.render()
-
-    return {'admin': admin, 'form': form_render, 'msg': msg}
-
 @view_config(context=HTTPNotFound, renderer='templates/404.pt')
 def view_404(request):
     settings = request.registry.settings
@@ -156,10 +108,7 @@ def view_delete_current(request):
     if conn.isEBoard(request.headers['X-Webauth-User']):
         try:
             user = DBSession.query(User).filter_by(name = request.matchdict['name']).one()
-            if not user.send:
-                DBSession.delete(user)
-            else:
-                DBSession.query(User).update({'number': None}).one()
+            DBSession.delete(user)
 
             room = DBSession.query(Room).filter(or_(Room.name1 == int(request.matchdict['name']), Room.name2 == int(request.matchdict['name']))).first()
             if room != None:
@@ -597,7 +546,7 @@ def view_main(request):
     ids = []
     next_room = None
     uid = request.headers['X-Webauth-User']
-    uid_number = conn.get_uid_number(uid)
+    uid_number = get_uid_number(uid)
     for room in rooms:
         if room.name1 == uid_number or room.name2 == uid_number:
             next_room = room.number
@@ -608,11 +557,12 @@ def view_main(request):
     if not ids == []:
         for user in conn.search_uids(ids):
             name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['uid'][0]
-    current_room = DBSession.query(User).filter_by(name=conn.get_uid_number(uid)).first()
+    current_room = DBSession.query(User).filter_by(name=get_uid_number(uid)).first()
     current_room = current_room.number if not current_room == None else None
     admin = conn.isEBoard(uid)
+    points = conn.get_points_uid(uid)
     conn.close()
-    return {'name_map': name_map, 'rooms': rooms, 'admin': admin, 'points': conn.get_points_uid(uid),
+    return {'name_map': name_map, 'rooms': rooms, 'admin': admin, 'points': points,
             'current':  current_room, 'next_room': next_room, 'msgs': msgs,
             'locked': siteClosed, 'closeTime': closeTime}
 

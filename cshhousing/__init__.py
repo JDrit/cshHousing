@@ -26,6 +26,5 @@ def main(global_config, **settings):
     config.add_route('view_delete_current', '/delete_current/{name}')
     config.add_route('view_leave', '/leave')
     config.add_route('view_delete_logs', '/delete_logs')
-    config.add_route('view_settings', '/settings')
     config.scan()
     return config.make_wsgi_app()

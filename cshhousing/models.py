@@ -38,15 +38,13 @@ class User(Base):
     __tablename__ = 'users'
     name = Column(Integer, primary_key = True)
     number = Column(Integer)
-    send = Column(Boolean)
 
-    def __init__(self, name, number = None, send = False):
+    def __init__(self, name, number = None):
         self.name = name
         self.number = number
-        self.send = False
 
     def __str__(self):
-        return str(self.name) + ", " + str(self.number) + ", " + str(self.send)
+        return str(self.name) + ", " + str(self.number)
 
 class Log(Base):
     __tablename__ = 'logs'
