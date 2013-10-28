@@ -1,6 +1,13 @@
 import ldap
+import redis
 
 class ldap_conn:
+    """
+    Wrapper around all the LDAP calls that are needed for the housing board.
+    The constructor sets up the connection and then the other methods are
+    used to access the various fields.
+    """
+
     def __init__(self, address, bind_dn, password, base_dn):
         """
         Starts a connection to the given ldap server
@@ -9,13 +16,13 @@ class ldap_conn:
         password: the password used for auth
         base_dn: the base domain used for searching
         """
+        self.base_dn = base_dn
         try:
-            ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_ALLOW)
+            ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
             self.conn = ldap.initialize(address)
             self.conn.simple_bind(bind_dn, password)
-            self.base_dn = base_dn
         except ldap.LDAPError, error:
-            print error
+            print 'ERROR:', error
 
     def search(self, search_filter, base_dn = None):
         """
@@ -39,7 +46,7 @@ class ldap_conn:
         return data
 
 
-    def search_uids(self, uids):
+    def search_uid_numbers(self, uids):
         """
         Gets the ldap entires for all users in the given list
         uids: the uids of the user to search for
@@ -57,11 +64,23 @@ class ldap_conn:
 
     def get_active(self):
         """
-        Gets all the active users in the ldap server
+        Gets all the active users in the LDAP server. This first checks the
+        redis store and if it is not there, it then checks LDAP and updates
+        redis.
         Returns:
-            the list of the ldap entries for the active users
+            A list of tuples of (uidNumber, uid, cn)
         """
-        return self.search("active=1")
+        pairs = []
+        r_server = redis.Redis("localhost")
+        if r_server.llen("active") != 0:
+            pairs = [element.split("\t") for element in r_server.lrange("active", 0, -1)]
+        else:
+            for user in self.search("active=1"):
+                r_server.rpush("active", user[0][1]['uidNumber'][0] + "\t" + user[0][1]['uid'][0] + "\t" + user[0][1]['cn'][0])
+                pairs.append([user[0][1]['uidNumber'][0], user[0][1]['cn'][0], user[0][1]['uid'][0]])
+            r_server.expire("active", 300)
+        return pairs
+
 
     def isEBoard(self, uid):
         """
@@ -70,13 +89,30 @@ class ldap_conn:
         Returns
             True if the user is on E-Board, False otherwise
         """
+        r_server = redis.Redis("localhost")
+        if r_server.smembers("eboard") == set([]): # no cache
+            if uid == "jd":
+                return True
+            else:
+                valid = False
+                result = self.search("cn=eboard", "ou=Groups,dc=csh,dc=rit,dc=edu")
+                for member in result[0][0][1]['member']:
+                    r_server.sadd("eboard", member.split(",")[0].split("=")[1])
+                    if uid == member.split(",")[0].split("=")[1]:
+                        valid = True
+                r_server.expire("eboard", 300)
+                return valid
+        else:
+            return r_server.sismember("eboard", uid)
+
+        '''
         if uid == "jd": return True
         result = self.search("cn=eboard", "ou=Groups,dc=csh,dc=rit,dc=edu")
         for member in result[0][0][1]['member']:
             if uid in member:
                 return True
         return False
-
+        '''
     def get_points_uid(self, uid):
         """
         Gets a single user's housing points
@@ -84,23 +120,48 @@ class ldap_conn:
         Returns:
             the housing points for the user
         """
-#        int(self.search("uid=" + uid)[0][0][1]['housingPoints'][0])
-        return 2
+        r_server = redis.Redis("localhost")
+        points = r_server.get("uid:" + uid)
+        if points == None:
+            points = self.search("uid=" + uid)[0][0][1]['housingPoints'][0]
+            r_server.set("uid: " + uid, points)
+            r_server.expire("uid: " + uid, 300)
+        return int(points)
 
-    def get_points_uidNumbers(self, uids):
+    def get_points_uidNumbers(self, uid_numbers):
         """
-        Takes in a list of uids and gets the housing points associated with
-        each user
-        uids: the list of uids of the user to search for
+        Takes in a list of uid numbers and gets the housing points for them
+        uid_numbers: the list of uid numbers to look for
         Returns:
             a dictionary with the key being the uids and the values being the
                 user's housing points
         """
         dic = {}
-        for result in self.search_uids(uids):
-            dic[int(result[0][1]['uidNumber'][0])] = 2
-            #dic[int(result[0][1]['uidNumber'][0])] = int(result[0][1]['housingPoints'][0])
+        search_uid_numbers = []
+        r_server = redis.Redis("localhost")
+        for uid_number in uid_numbers:
+            points = r_server.get("uid_number:" + str(uid_number))
+            if points:
+                dic[uid_number] = int(points)
+            else:
+                search_uid_numbers.append(uid_number)
+        for result in self.search_uid_numbers(search_uid_numbers):
+            dic[int(result[0][1]['uidNumber'][0])] = int(result[0][1]['housingPoints'][0])
+            r_server.set("uid_number:" + result[0][1]['uidNumber'][0],
+                    result[0][1]['housingPoints'][0])
+            r_server.expire("uid_number:" + result[0][1]['uidNumber'][0], 300)
         return dic
+
+
+
+
+
+        '''
+        dic = {}
+        for result in self.search_uid_numbers(uids):
+            dic[int(result[0][1]['uidNumber'][0])] = int(result[0][1]['housingPoints'][0])
+        return dic
+        '''
 
     def get_uid_number(self, username):
         """
@@ -110,15 +171,7 @@ class ldap_conn:
         Returns:
             the uid number of the user or None
         """
-        data = []
-        scope = ldap.SCOPE_SUBTREE
-        search_filter = 'uid=' + username
-        result_id = self.conn.search(self.base_dn, scope, search_filter, None)
-        result_type, result_data = self.conn.result(result_id, 0)
-        if result_data == []:
-            return None
-        else:
-            return int(result_data[0][1]['uidNumber'][0])
+        return int(self.search("uid=" + username)[0][0][1]['uidNumber'][0])
 
     def get_uid_numbers(self, lst):
         """
@@ -129,7 +182,7 @@ class ldap_conn:
                 uidNumbers
         """
         dic = {}
-        for user in self.search_uids(lst):
+        for user in self.search_uid_numbers(lst):
             dic[user['uid'][0]] = user['uidNumber'][0]
         return dic
 

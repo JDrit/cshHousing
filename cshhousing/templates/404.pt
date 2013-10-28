@@ -17,7 +17,7 @@
 
   <body>
 
-    <div class="container">
+    <div class="container" style="min-width: 520px">
 
       <!-- Static navbar -->
       <div class="navbar">
@@ -31,11 +31,12 @@
           <div class="nav-collapse collapse">
             <ul class="nav navbar-nav">
               <li class="active"><a href="/">Home</a></li>
-              <li><a href="/join">Join Room</a></li>
-              <li><a href="/leave">Leave Room</a></li>
+              <li tal:condition="not locked"><a href="/join">Join Room</a></li>
+              <li tal:condition="not locked and next_room"><a href="/leave">Leave Room</a></li>
             </ul>
             <ul class="nav navbar-nav pull-right">
-              <li tal:condition="admin == True"><a href="/admin">Admin</a></li>
+              <li><a href="/settings">Settings</a></li>
+              <li tal:condition="admin"><a href="/admin">Admin</a></li>
             </ul>
           </div><!--/.nav-collapse -->
         </div>
@@ -44,15 +45,16 @@
       <!-- Main component for a primary marketing message or call to action -->
       <div class="jumbotron">
         <h1><img src="/static/images/logo.png"/> Housing Board</h1>
-	  <br />
-	  <h1>Page does not exist!!</h1>
-	  <br />
-	  <br />
-	  <br />
+        <br />
+        <br />
+        <h1 class="text-center"><strong>Page does not exist!!</strong></h1>
+	    <br />
+	    <br />
+	    <br />
       </div>
   <hr>
   <footer>
-  <p>CSH Housing: created by <a href="jd.batchik.net">J.D. Batchik</a></p>
+  <p>CSH Housing: created by <a href="jd.batchik.net">J.D. Batchik</a> | find on <a href="https://github.com/JDrit/cshHousing">GitHub</a></p>
   </footer>
  
     </div> <!-- /container -->

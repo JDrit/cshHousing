@@ -6,156 +6,273 @@
     <meta name="description" content="CSH Housing Board">
     <meta name="author" content="JD">
     <link rel="icon" href="/static/images/favicon.ico">
-    <title>CSH Housing Board</title>
-
+    <title>
+      CSH Housing Board
+    </title>
+    
     <link href="/static/css/bootstrap.css" rel="stylesheet">
     <link href="/static/css/navbar.css" rel="stylesheet">
-
-    <script src="/static/scripts/jquery-1.7.1.min.js" type="text/javascript"></script>
-    <script src="/static/scripts/bootstrap.js" type="text/javascript"></script>
+    <link href="/static/css/rooms.css" rel="stylesheet">
+    
+    <script src="/static/scripts/jquery-1.7.1.min.js" type="text/javascript">
+    </script>
+    <script src="/static/scripts/bootstrap.js" type="text/javascript">
+    </script>
   </head>
-
+  
   <body>
-    <div class="container">
+    <div class="container" style="min-width: 520px">
       <!-- Static navbar -->
       <div class="navbar">
         <div class="container">
           <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
+            <span class="icon-bar">
+            </span>
+            <span class="icon-bar">
+            </span>
+            <span class="icon-bar">
+            </span>
           </button>
-          <a class="navbar-brand" href="/">Housing Board</a>
+          <a class="navbar-brand" href="/">
+            Housing Board
+          </a>
           <div class="nav-collapse collapse">
             <ul class="nav navbar-nav">
-              <li class="active"><a href="/">Home</a></li>
-              <li tal:condition="not locked"><a href="/join">Join Room</a></li>
-              <li tal:condition="next_room"><a href="/leave">Leave Room</a></li>
+              <li class="active">
+                <a href="/">
+                  Home
+                </a>
+              </li>
+              <li tal:condition="not locked">
+                <a href="/join">
+                  Join Room
+                </a>
+              </li>
+              <li tal:condition="not locked and next_room">
+                <a href="/leave">
+                  Leave Room
+                </a>
+              </li>
             </ul>
             <ul class="nav navbar-nav pull-right">
-              <li tal:condition="admin"><a href="/admin">Admin</a></li>
+              <li>
+                <a href="/settings">
+                  Settings
+                </a>
+              </li>
+              <li tal:condition="admin">
+                <a href="/admin">
+                  Admin
+                </a>
+              </li>
             </ul>
-          </div><!--/.nav-collapse -->
+          </div>
+          <!--/.nav-collapse -->
         </div>
       </div>
       <!-- Main component for a primary marketing message or call to action -->
       <div class="jumbotron">
-        <h1><img src="/static/images/logo.png"/> Housing Board</h1>
+        <h1>
+          <img src="/static/images/logo.png"/>
+          Housing Board
+        </h1>
         <br />
-        <?python format = closeTime.strftime("%b %d, %Y %I:%M %p") if closeTime != None else ""?>
-        <p tal:condition="closeTime" class="text-center">Site will lock at ${format}</p>
-        <p class="text-center"><span id="countdown"></span></p>
-        <script tal:condition="closeTime != None and not locked">
-            // set the date we're counting down to
-            var target_date = new Date(${closeTime.year}, ${closeTime.month - 1}, ${closeTime.day}, ${closeTime.hour}, ${closeTime.minute}, ${closeTime.second}).getTime();
- 
-            // variables for time units
-            var days, hours, minutes, seconds;
-            // get tag element
-            var countdown = document.getElementById("countdown");
- 
-            // update the tag with id "countdown" every 1 second
-            setInterval(function () {
-              // find the amount of "seconds" between now and target
-              var current_date = new Date().getTime();
-              var seconds_left = (target_date - current_date) / 1000;
- 
-              // do some time calculations
-              days = parseInt(seconds_left / 86400);
-              seconds_left = seconds_left % 86400;
-     
-              hours = parseInt(seconds_left / 3600);
-              seconds_left = seconds_left % 3600;
-     
-              minutes = parseInt(seconds_left / 60);
-              seconds_left = seconds_left % 60;
-
-              // format countdown string + set tag value
-              text = "";
-	      if (days != 0) {
-		if (days == 1) {
-		  text = text.concat(days + " day, ");
-		} else {
-		  text = text.concat(days + " days, ");
-		}
-	      }
-	      if (!(hours == 0 && days == 0)) {
-		if (hours == 1) {
-                  text = text.concat(hours + " hour, ");
-                } else {		
-                  text = text.concat(hours + " hours, ");
-                }
-              }
-              if (minutes == 0) {
-		if (seconds_left == 0) {
-		  text = text.concat(parseInt(seconds_left) + " second until the portal closes");
-		} else {
-		  text = text.concat(parseInt(seconds_left) + " seconds until the portal closes");
-		}
-	      } else if (minutes == 1) {
-                text = text.concat(minutes + " minute until the portal closes");
+        <?python format = close_time.strftime("%b %d, %Y %I:%M %p") if close_time != None else ""?>
+        <p tal:condition="close_time and not locked" class="text-center">
+          Site will lock at ${format}
+        </p>
+        <p class="text-center">
+          <span id="countdown">
+          </span>
+        </p>
+        <script tal:condition="close_time != None and not locked">
+          // set the date we're counting down to
+          var target_date = new Date(${close_time.year}, ${close_time.month - 1}, ${close_time.day}, ${close_time.hour}, ${close_time.minute}, ${close_time.second}).getTime();
+          
+          // variables for time units
+          var days, hours, minutes, seconds;
+          // get tag element
+          var countdown = document.getElementById("countdown");
+          
+          // update the tag with id "countdown" every 1 second
+          setInterval(function () {
+            // find the amount of "seconds" between now and target
+            var current_date = new Date().getTime();
+            var seconds_left = (target_date - current_date) / 1000;
+            
+            // do some time calculations
+            days = parseInt(seconds_left / 86400);
+            seconds_left = seconds_left % 86400;
+            
+            hours = parseInt(seconds_left / 3600);
+            seconds_left = seconds_left % 3600;
+            
+            minutes = parseInt(seconds_left / 60);
+            seconds_left = seconds_left % 60;
+            
+            // format countdown string + set tag value
+            text = "";
+            if (days != 0) {
+              if (days == 1) {
+                text = text.concat(days + " day, ");
               } else {
-                text = text.concat(minutes + " minutes until the portal closes");
-	      }
-              if (!(days < 0 || hours < 0 || minutes < 0 || seconds_left < 0)) {
-                countdown.innerHTML = text; 
-	      } else {
-		location.reload();
+                text = text.concat(days + " days, ");
               }
-            }, 1000);
+            }
+            if (!(hours == 0 && days == 0)) {
+              if (hours == 1) {
+                text = text.concat(hours + " hour, ");
+              } else {		
+                text = text.concat(hours + " hours, ");
+              }
+            }
+            if (minutes == 0) {
+              if (seconds_left == 0) {
+                text = text.concat(parseInt(seconds_left) + " second until housing signups closes");
+              } else {
+                text = text.concat(parseInt(seconds_left) + " seconds until housing signups closes");
+              }
+            } else if (minutes == 1) {
+              text = text.concat(minutes + " minute until housing signups closes");
+            } else {
+              text = text.concat(minutes + " minutes until housing signups closes");
+            }
+            if (!(days < 0 || hours < 0 || minutes < 0 || seconds_left < 0)) {
+              countdown.innerHTML = text; 
+            } else {
+              location.reload();
+            }
+          }, 1000);
         </script>
 	    <div tal:repeat="msg msgs">
 	      <?python type = "alert-danger" if msg.lower().startswith("warning") else "alert-info" ?>
           <div class="alert ${type}">
-	        <button type="button" class="close" data-dismiss="alert">&times;</button>
-	        <strong>${msg}</strong>
+	        <button type="button" class="close" data-dismiss="alert">
+              &times;
+            </button>
+	        <strong>
+              ${msg}
+            </strong>
 	      </div>
         </div>
 	    <div tal:condition="locked">
-          <h2 class="text-center"><strong>Site is now closed, no more changes can be made</strong></h2>
+          <h2 class="text-center">
+            <strong>
+              Site is now closed, no more changes can be made
+            </strong>
+          </h2>
           <br />
         </div>
         <div class="panel">
           <div class="panel-heading">
-            <h3 class="panel-title">User's Stats</h3>
+            <h3 class="panel-title">
+              User's Stats
+            </h3>
           </div>
-          <h4>Housing Points: ${points}</h4>
-	      <h4 tal:condition="current is not None">Current Room: ${current}</h4>
+          <h4>
+            Housing Points: ${points}
+          </h4>
+	      <h4 tal:condition="current is not None">
+            Current Room: ${current}
+          </h4>
 	      <div>
-            <h4 tal:condition="next_room != None">Next Year's Room: ${next_room}
+            <h4 tal:condition="next_room != None">
+              Next Year's Room: ${next_room}
               <div tal:condition="not locked" class="pull-right">
                 <a href="/leave">
-                  <button type="button" class="btn btn-danger">Leave Room</button>
+                  <button type="button" class="btn btn-danger">
+                    Leave Room
+                  </button>
                 </a>
               </div>
             </h4>
           </div>
         </div>
-	    <table class="table table-hover table-striped">
+        <div style="position: relative; height: 100%; width=100%">
+          <img src="/static/images/floorplan.gif" width="100%" />
+        <div tal:repeat="room rooms" id="r${room.number}" class="room_block"
+        style="${'background: rgba(187, 255, 255, 0.8)' if room.locked == False else 'background: rgba(255,187,187,0.8)'}" >
+          <script>
+            $(document).ready(function() {
+              $('#r${room.number}').popover({
+                content    : "Room Number: ${room.number} <br /> ${name_map.get(room.name1, '')} ${'&' if room.name1 != None and room.name2 != None else ''} ${name_map.get(room.name2, '')}",
+                trigger    : "hover",
+                placement  : "${"left" if room.number > 3051 else "right"}",
+                html       : true
+              });
+            });
+          </script>
+          <div>
+            <a href="/join/${room.number}">
+              <p class="text-center">
+                ${room.points} pts
+              </p>
+            </a>
+          </div>
+        </div>
+        </div>
+        <br />
+        <br />
+        <table class="table table-hover table-striped">
           <tr>
-	        <td>Room Number:</td>
-	        <td>Name 1:</td>
-	        <td>Name 2:</td>
-	        <td>Total Points</td>
-	        <td>Locked:</td>
+	        <td>
+              Room Number:
+            </td>
+	        <td>
+              Name 1:
+            </td>
+	        <td>
+              Name 2:
+            </td>
+	        <td>
+              Total Points
+            </td>
+	        <td>
+              Locked:
+            </td>
           </tr>
-	      <tr tal:repeat="room rooms" tal:attributes="class 'warning' if room.locked else None">
-		    <td>${room.number}</td>
+	      <tr tal:repeat="room rooms" tal:attributes="class 'danger' if room.locked else None">
+            
+            <td>
+              <a href="/join/${room.number}" >
+                ${room.number}
+              </a>
+            </td>
 		    <?python name1 = name_map.get(room.name1, room.name1) if not room.single else "-SINGLE-" if room.name1 == None else name_map.get(room.name1, room.name1) ?>
-		    <td>${name1}</td>
+		    <td>
+              ${name1}
+            </td>
 		    <?python name2 = name_map.get(room.name2, room.name2) if not room.single else "-SINGLE-" if room.name2 == None and name1 != "-SINGLE-" else name_map.get(room.name2, room.name2) ?>
-		    <td>${name2}</td>
-		    <td>${room.points}</td>
-		    <td>${room.locked}</td>
+		    <td>
+              ${name2}
+            </td>
+		    <td>
+              ${room.points}
+            </td>
+		    <td>
+              ${room.locked}
+            </td>
           </tr>
         </table>
-	   <br />
-       <p></p>
-     </div>
-   <hr>
-   <footer>
-   <p>CSH Housing: created by <a href="jd.batchik.net">J.D. Batchik</a></p>
-   </footer>
-   </div> <!-- /container -->
- </body>
+        <br />
+        <p>
+        </p>
+      </div>
+      <hr>
+      <footer>
+        <p>
+          CSH Housing: created by 
+          <a href="jd.batchik.net">
+            J.D. Batchik
+          </a>
+          | find on 
+          <a href="https://github.com/JDrit/cshHousing">
+            GitHub
+          </a>
+        </p>
+      </footer>
+    </div>
+    
+    <!-- /container -->
+  </body>
 </html>

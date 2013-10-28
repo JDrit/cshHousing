@@ -1,0 +1,252 @@
+.NameLink {
+	text-decoration: none;
+}
+
+.RoomFill {
+	width: 65px;
+	height: 122px;
+	position: absolute;
+	left: 0px;
+	right: 0px;
+	text-align: center;
+	display: table;
+	table-layout: fixed;
+}
+
+@media (max-width: 1100px) {
+  .room_block {
+    font-size:small;
+  }
+}
+
+.RoomText {
+	vertical-align: middle;
+	overflow: hidden;
+	display: table-cell;
+}
+
+
+#r3126 {
+    left: 94.25%;
+    top: 67.75%;
+    width: 5.25%;
+    height: 10.5%;
+    position: absolute;
+}
+
+#r3125 {
+    left: 94.25%;
+    top: 57%;
+    width: 5.25%;
+    height: 10%;
+    position: absolute;
+}
+
+
+#r3111 {
+    left: 81.75%;
+    top: 57%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3110 {
+    left: 81.75%;
+    top: 75.5%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3107 {
+    left: 77.25%;
+    top: 57%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3106 {
+    left: 77.25%;
+    top: 75.5%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3103 {
+    left: 72.75%;
+    top: 57%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3099 {
+    left: 68.25%;
+    top: 57%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3095 {
+    left: 63.75%;
+    top: 57%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3094 {
+    left: 63.75%;
+    top: 75.5%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3091 {
+    left: 59.25%;
+    top: 57%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3090 {
+    left: 59.25%;
+    top: 75.5%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3086 {
+    left: 54.75%;
+    top: 75.5%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3071 {
+    left: 36.75%;
+    top: 57%;
+    width: 4.24%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3070 {
+    left: 36.75%;
+    top: 75.5%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3067 {
+    left: 32.25%;
+    top: 57%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3066 {
+    left: 32%;
+    top: 75.5%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3063 {
+	left: 27.75%;
+    top: 57%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3059 {
+    left: 23.25%;
+    top: 57%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3055 {
+	left: 18.75%;
+	top: 57%;
+    width: 4.25%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3054 {
+	left: 18.75%;
+	top: 75.5%;
+    width: 4.5%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3051 {
+	left: 14%;
+	top: 57%;
+	width: 4.5%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3050 {
+	left: 14%;
+	top: 75.5%;
+	width: 4.5%;
+    height: 14%;
+    position: absolute;
+}
+
+#r3024 {
+	left: 0.5%;
+	top: 45.5%;
+	width: 5.5%;
+	height: 11%;
+    position: absolute;
+}
+
+#r3020 {
+	left: 0.5%;
+	top: 34.5%;
+	width: 5.5%;
+	height: 10.5%;
+    position: absolute;
+}
+
+#r3016 {
+	left: 0.5%;
+	top: 23%;
+	width: 5.5%;
+	height: 10.5%;
+    position: absolute;
+}
+
+#r3013 {
+	left: 8.5%;
+	top: 12%;
+	width: 5.5%;
+	height: 10.5%;
+    position: absolute;
+}
+
+#r3009 {
+	left: 8.5%;
+	top: 1%;
+	width: 5.5%;
+	height: 10.5%;
+    position: absolute;
+}

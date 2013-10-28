@@ -22,7 +22,7 @@
 
   </head>
   <body>
-    <div class="container">
+    <div class="container" style="min-width: 520px">
 
       <!-- Static navbar -->
       <div class="navbar">
@@ -32,14 +32,15 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </button>
-          <a class="navbar-brand" href="/">CSH Housing Board</a>
+          <a class="navbar-brand" href="/">Housing Board</a>
           <div class="nav-collapse collapse">
             <ul class="nav navbar-nav">
               <li><a href="/">Home</a></li>
-              <li><a href="/join">Join Room</a></li>
-              <li><a href="/leave">Leave Room</a></li>
+              <li tal:condition="not locked"><a href="/join">Join Room</a></li>
+              <li tal:condition="not locked and next_room"><a href="/leave">Leave Room</a></li>
             </ul>
             <ul class="nav navbar-nav pull-right">
+                <li><a href="/settings">Settings</a></li>
               <li class="active"><a href="/admin">Admin</a></li>
             </ul>
           </div><!--/.nav-collapse -->
@@ -58,11 +59,10 @@
 	      </div>
             </div>
               <ul class="nav nav-tabs">
-                <li><a href="#list" data-toggle="tab">Room List</a></li>
-                <li><a href="#add" data-toggle="tab">Add Rooms</a></li>
-		<li><a href="#current" data-toggle="tab">Current Rooms</a></li>
-		<li><a href="#log" data-toggle="tab">Logs</a></li>
-		<li><a href="#settings" data-toggle="tab">Settings</a></li>
+                <li class="active"><a href="#list" data-toggle="tab">Room List</a></li>
+	        	<li><a href="#current" data-toggle="tab">Current Rooms</a></li>
+        		<li><a href="#log" data-toggle="tab">Logs</a></li>
+		        <li><a href="#settings" data-toggle="tab">Settings</a></li>
 	      </ul>
               <div class="tab-content">
 	        <div class="tab-pane active" id="list">
@@ -72,9 +72,8 @@
 	             <td>Room Number:</td>
 	             <td>Name 1:</td>
 		     <td>Name 2:</td>
-		     <td>Total Points</td>
+		     <td>Total Points:</td>
 		     <td>Locked:</td>
-		     <td></td>
 		     <td></td>
 	           </tr>
 	           <tr tal:repeat="room rooms">
@@ -90,18 +89,8 @@
                          <button type="button" class="btn btn-default" action="">Edit</button>
                        </a>
                      </td>
-                     <td>
-                       <a href="/delete/${room.number}">
-		         <button type="button" class="btn btn-danger">Delete</button>
-                       </a>
-                     </td>
 	           </tr>
                 </table>
-		</div>
-	        <div class="tab-pane" id="add">
-		  <h2>Add Room</h2>
-                  <h4><em>these are the rooms that will be available next year for people to sign up for</em></h4>
-                  <span tal:replace="structure form"/>
 		</div>
 		<div class="tab-pane" id="current">
 		  <h2>Current room assignments</h2>
@@ -164,7 +153,7 @@
   </div></div></div>
   <hr>
   <footer>
-  <p>CSH Housing: created by <a href="jd.batchik.net">J.D. Batchik</a></p>
+    <p>CSH Housing: created by <a href="jd.batchik.net">J.D. Batchik</a> | find on <a href="https://github.com/JDrit/cshHousing">GitHub</a></p>
   </footer>
     </div> <!-- /container -->
   </body>
