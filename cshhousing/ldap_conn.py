@@ -75,10 +75,10 @@ class ldap_conn:
         if r_server.llen("active") != 0:
             pairs = [element.split("\t") for element in r_server.lrange("active", 0, -1)]
         else:
-            for user in self.search("active=1"):
+            for user in self.search("(&(active=1)(onfloor=1))"):
                 r_server.rpush("active", user[0][1]['uidNumber'][0] + "\t" + user[0][1]['uid'][0] + "\t" + user[0][1]['cn'][0])
                 pairs.append([user[0][1]['uidNumber'][0], user[0][1]['cn'][0], user[0][1]['uid'][0]])
-            r_server.expire("active", 300)
+            r_server.expire("active", 600)
         return pairs
 
 
@@ -100,19 +100,11 @@ class ldap_conn:
                     r_server.sadd("eboard", member.split(",")[0].split("=")[1])
                     if uid == member.split(",")[0].split("=")[1]:
                         valid = True
-                r_server.expire("eboard", 300)
+                r_server.expire("eboard", 600)
                 return valid
         else:
             return r_server.sismember("eboard", uid)
 
-        '''
-        if uid == "jd": return True
-        result = self.search("cn=eboard", "ou=Groups,dc=csh,dc=rit,dc=edu")
-        for member in result[0][0][1]['member']:
-            if uid in member:
-                return True
-        return False
-        '''
     def get_points_uid(self, uid):
         """
         Gets a single user's housing points
@@ -125,16 +117,17 @@ class ldap_conn:
         if points == None:
             points = self.search("uid=" + uid)[0][0][1]['housingPoints'][0]
             r_server.set("uid: " + uid, points)
-            r_server.expire("uid: " + uid, 300)
+            r_server.expire("uid: " + uid, 600)
         return int(points)
 
     def get_points_uidNumbers(self, uid_numbers):
         """
-        Takes in a list of uid numbers and gets the housing points for them
-        uid_numbers: the list of uid numbers to look for
+        Takes a list of uid numbers and returns the housing points for each. The
+        results are cached in redis for future use
+        uid_numbers: the list of uid numbers represeting the users
         Returns:
-            a dictionary with the key being the uids and the values being the
-                user's housing points
+            A dictionary of the points with the key being the uid number and
+                the value being the amount of points
         """
         dic = {}
         search_uid_numbers = []
@@ -149,19 +142,8 @@ class ldap_conn:
             dic[int(result[0][1]['uidNumber'][0])] = int(result[0][1]['housingPoints'][0])
             r_server.set("uid_number:" + result[0][1]['uidNumber'][0],
                     result[0][1]['housingPoints'][0])
-            r_server.expire("uid_number:" + result[0][1]['uidNumber'][0], 300)
+            r_server.expire("uid_number:" + result[0][1]['uidNumber'][0], 600)
         return dic
-
-
-
-
-
-        '''
-        dic = {}
-        for result in self.search_uid_numbers(uids):
-            dic[int(result[0][1]['uidNumber'][0])] = int(result[0][1]['housingPoints'][0])
-        return dic
-        '''
 
     def get_uid_number(self, username):
         """

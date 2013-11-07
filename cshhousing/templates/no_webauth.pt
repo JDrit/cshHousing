@@ -8,15 +8,15 @@
     <link rel="icon" href="/static/images/favicon.ico">
     <title>CSH Housing Board</title>
 
-    <script src="/static/scripts/jquery-1.7.1.min.js" type="text/javascript"></script>
-    <script src="/static/scripts/deform_bootstrap.js" type="text/javascript"></script>
-    <script src="/static/scripts/jquery_chosen/chosen.jquery.js" type="text/javascript"></script>
-    <script src="/static/scripts/deform.js" type="text/javascript"></script>
-    <link href="/static/css/chosen.css" rel="stylesheet">
     <link href="/static/css/bootstrap.css" rel="stylesheet">
     <link href="/static/css/navbar.css" rel="stylesheet">
+
+    <script src="/static/scripts/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="/static/scripts/bootstrap.js" type="text/javascript"></script>
   </head>
+
   <body>
+
     <div class="container" style="min-width: 520px">
 
       <!-- Static navbar -->
@@ -30,13 +30,10 @@
           <a class="navbar-brand" href="/">Housing Board</a>
           <div class="nav-collapse collapse">
             <ul class="nav navbar-nav">
-              <li><a href="/">Home</a></li>
-              <li tal:condition="not locked"><a href="/join">Join Room</a></li>
-              <li tal:condition="not locked and next_room"><a href="/leave">Leave Room</a></li>
+              <li class="active"><a href="/">Home</a></li>
             </ul>
             <ul class="nav navbar-nav pull-right">
-                <li><a href="/settings">Settings</a></li>
-              <li class="active"><a href="/admin">Admin</a></li>
+              <li><a href="/settings">Settings</a></li>
             </ul>
           </div><!--/.nav-collapse -->
         </div>
@@ -44,16 +41,17 @@
 
       <!-- Main component for a primary marketing message or call to action -->
       <div class="jumbotron">
-      
-	  <div id="container" class="text-center">
-	    <h1>Edit Room #${number}</h1>
-              <span tal:replace="structure form"/>
-          </div>
-	<br />
+        <h1><img src="/static/images/logo.png"/> Housing Board</h1>
+        <br />
+        <br />
+        <h1 class="text-center"><strong>You can only access the housing portal through housing.csh.rit.edu</strong></h1>
+	    <br />
+	    <br />
+	    <br />
       </div>
   <hr>
   <footer>
-    <p>CSH Housing: created by <a href="http://jd.batchik.net">J.D. Batchik</a> | find on <a href="https://github.com/JDrit/cshHousing">GitHub</a></p>
+  <p>CSH Housing: created by <a href="http://jd.batchik.net">J.D. Batchik</a> | find on <a href="https://github.com/JDrit/cshHousing">GitHub</a></p>
   </footer>
  
     </div> <!-- /container -->

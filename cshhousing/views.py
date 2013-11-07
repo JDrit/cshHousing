@@ -674,7 +674,8 @@ def view_leave(request):
 
 @view_config(route_name='view_main', renderer='templates/index.pt')
 def view_main(request):
-
+    if 'X-Webaut-User' not in request.headers:
+        print 'bad'
     global site_closed, close_time
     session = request.session
     msgs = session.pop_flash()
@@ -728,13 +729,22 @@ def view_join(request):
     if ('cancel', u'cancel') in request.POST.items():
         return HTTPFound(location=request.route_url('view_main'))
 
+
     settings = request.registry.settings
     conn = ldap_conn(settings['address'], settings['bind_dn'],
             settings['password'], settings['base_dn'])
-
+    active_members = conn.get_active()
     uid = request.headers['X-Webauth-User']
     uid_number = get_uid_number(uid, request)
     found_room = False
+
+    # if the user is not in the active members list, they are not allowed to join a room
+    for user in active_members:
+        if user[2] == uid:
+            break
+    else:
+        request.session.flash('Warning: You are not allowed to signup for a room since you are not an active member with on-floor status')
+        return HTTPFound(location = request.route_url('view_main'))
 
     for room in DBSession.query(Room).order_by(Room.number).all():
         if room_id != "" and room.number == room_id:
@@ -761,8 +771,7 @@ def view_join(request):
         request.session.flash('Warning: You are already in a room ' + str(current_room) + '. Leave that room before joining another')
         return HTTPFound(location=request.route_url('view_main'))
 
-
-    for pair in conn.get_active():
+    for pair in active_members:
         if not pair[2] == uid:
             names.append((pair[0], pair[2] + " - " + pair[1]))
             names_validate.append(pair[0])
