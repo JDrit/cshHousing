@@ -77,7 +77,7 @@ class ldap_conn:
         else:
             for user in self.search("(&(active=1)(onfloor=1))"):
                 r_server.rpush("active", user[0][1]['uidNumber'][0] + "\t" + user[0][1]['uid'][0] + "\t" + user[0][1]['cn'][0])
-                pairs.append([user[0][1]['uidNumber'][0], user[0][1]['cn'][0], user[0][1]['uid'][0]])
+                pairs.append([user[0][1]['uidNumber'][0], user[0][1]['uid'][0], user[0][1]['cn'][0]])
             r_server.expire("active", 600)
         return pairs
 

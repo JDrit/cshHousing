@@ -740,7 +740,8 @@ def view_join(request):
 
     # if the user is not in the active members list, they are not allowed to join a room
     for user in active_members:
-        if user[2] == uid:
+        print user
+        if user[1] == uid:
             break
     else:
         request.session.flash('Warning: You are not allowed to signup for a room since you are not an active member with on-floor status')
