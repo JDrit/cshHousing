@@ -72,6 +72,7 @@ class ldap_conn:
         Returns:
             the uid number of the user or None
         """
+        print username
         return int(self.search("uid=" + username)[0][0][1]['uidNumber'][0])
 
     def close(self):
@@ -115,15 +116,26 @@ def get_points_uid(uid, request):
         the housing points for the user
     """
     r_server = redis.Redis("localhost")
-    points = r_server.get("uid:" + uid)
+    points = r_server.get("uid_to_points:" + uid)
     if points == None:
         conn = ldap_conn(request)
         points = conn.search("uid=" + uid)
         conn.close()
         points = points[0][0][1]['housingPoints'][0]
-        r_server.set("uid: " + uid, points)
-        r_server.expire("uid: " + uid, 600)
+        r_server.set("uid_to_points: " + uid, points)
+        r_server.expire("uid_to_points: " + uid, 600)
     return int(points)
+
+def get_uid_number(username, request):
+    r_server = redis.Redis('localhost')
+    uid_number = r_server.get('username_to_uid_number:' + username)
+    if uid_number == None:
+        conn = ldap_conn(request)
+        uid_number = conn.get_uid_number(username)
+        conn.close()
+        r_server.set('username_to_uid_number:' + username, uid_number)
+        r_server.expire('username_to_uid_number:' + username, 600)
+    return int(uid_number)
 
 def get_active(request):
     """
@@ -163,7 +175,7 @@ def get_points_uidNumbers(uid_numbers, request):
     search_uid_numbers = []
     r_server = redis.Redis("localhost")
     for uid_number in uid_numbers:
-        points = r_server.get("uid_number:" + str(uid_number))
+        points = r_server.get("uid_number_to_points:" + str(uid_number))
         if points:
             dic[uid_number] = int(points)
         else:
@@ -172,9 +184,9 @@ def get_points_uidNumbers(uid_numbers, request):
         conn = ldap_conn(request)
         for result in conn.search_uid_numbers(search_uid_numbers):
             dic[int(result[0][1]['uidNumber'][0])] = int(result[0][1]['housingPoints'][0])
-            r_server.set("uid_number:" + result[0][1]['uidNumber'][0],
+            r_server.set("uid_number_to_points:" + result[0][1]['uidNumber'][0],
                     result[0][1]['housingPoints'][0])
-            r_server.expire("uid_number:" + result[0][1]['uidNumber'][0], 600)
+            r_server.expire("uid_number_to_points:" + result[0][1]['uidNumber'][0], 600)
         conn.close()
     return dic
 

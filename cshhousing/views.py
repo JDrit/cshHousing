@@ -48,13 +48,6 @@ def unlock_site():
     global site_closed
     site_closed = False
 
-def get_uid_number(uid, request):
-    #return int(subprocess.Popen(["id","-u", uid],stdout=subprocess.PIPE).communicate()[0])
-    conn = ldap_conn(request)
-    num = conn.get_uid_number(uid)
-    conn.close()
-    return num
-
 def add_log(uid_number, reason, info):
     DBSession.add(Log(uid_number, reason, info))
     DBSession.add(Final_Log(uid_number, reason, info))
@@ -435,7 +428,6 @@ def view_admin_edit(request):
     names_validate = []
     numbers = []
     names = []
-    uid_to_username = {} # key: uid number, value: username
     empty = 'empty'
     next_room = None
     uid_number = get_uid_number(request.headers['X-Webauth-User'], request)
@@ -465,7 +457,6 @@ def view_admin_edit(request):
         for pair in get_active(request):
             names.append((pair[0], pair[2] + " - " + pair[1]))
             names_validate.append(pair[0])
-            uid_to_username[pair[0]] = pair[1]
 
         class Schema(colander.Schema):
             name1 = colander.SchemaNode(
@@ -516,13 +507,13 @@ def view_admin_edit(request):
                 if not name1 == None or not name1 == None:
                     for name in names:
                         if name[0] == name1:
-                           realName1 = uid_to_username[name[0]]
+                            realName1 = name[0][name[0].index('-') + 1:].strip()
                         if name[0] == name2:
-                            realName2 = uid_to_username[name[0]]
+                            realName2 = name[0][name[0].index('-') + 1:].strip()
                         if name[0] == str(room.name1):
-                            oldRealName1 = uid_to_username[name[0]]
+                            oldRealName1 = name[0][name[0].index('-') + 1:].strip()
                         if name[0] == str(room.name2):
-                            oldRealName2 = uid_to_username[name[0]]
+                            oldRealName2 = name[0][name[0].index('-') + 1:].strip()
 
                 points = sum(get_points_uidNumbers([name1, name2], request).values())
                 if not DBSession.query(User).filter(or_( # squatting points
@@ -816,7 +807,7 @@ def view_join(request):
 
                     # else the user has permission to pull the user out of their current room
                     elif p_user:
-                        new_points = sum(get_points_uidNumbers([room.name1, room.name2]).values(), request)
+                        new_points = sum(get_points_uidNumbers([room.name1, room.name2], reques, request).values())
                         if p_room.name1 == partner:
                             DBSession.query(Room).update({'name1': None, 'points': new_points})
                         else:
@@ -859,9 +850,9 @@ def view_join(request):
                             uid2 = None
                             for name in names:
                                 if names[0] == str(room.name1):
-                                    uid1 = names[1]
+                                    uid1 = names[1][names[1].index('-') + 1:]
                                 elif names[0] == str(room.name2):
-                                    uid2 = names[1]
+                                    uid2 = names[1][names[1].index('-') + 1:]
                                 if uid != None and uid != None:
                                     break
                             if uid1 != None:
@@ -880,11 +871,11 @@ def view_join(request):
                                 users += " & " + str(join_room.name2)
                             for name in names:
                                 if name[0] == str(appstruct['partnerName']):
-                                    partnerString = name[1]
+                                    partnerString = name[1][name[1].index('-') + 1:].strip()
                                 if name[0] == str(join_room.name1):
-                                    kickString1 = name[1]
+                                    kickString1 = name[1][name[1].index('-') + 1:].strip()
                                 if name[0] == str(join_room.name2):
-                                    kickString2 = name[1]
+                                    kickString2 = name[1][name[1].index('-') + 1:].strip()
 
                             send_notification(kickString1, "You have been kicked from room " + str(appstruct['roomNumber']) +
                                     " by " + uid + " and " + partnerString, request)
@@ -931,7 +922,8 @@ def view_join(request):
                                             room.name2 = None
                                         room.points = sum(get_points_uidNumbers([room.name1, room.name2], request).values())
 
-                                    send_notification(name[1], "Joined room " + str(appstruct['roomNumber']) + " with " + uid, request)
+                                    send_notification(name[1][name[1].index('-') + 1:].strip(),
+                                            "Joined room " + str(appstruct['roomNumber']) + " with " + uid, request)
                                     add_log(uid_number, "join", "room " + str(appstruct['roomNumber']) + " with " +
                                             name[1] + "(" + str(appstruct['partnerName']) + ")")
                                     break
