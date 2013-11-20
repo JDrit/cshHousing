@@ -62,7 +62,8 @@
                 <li class="active"><a href="#list" data-toggle="tab">Room List</a></li>
 	        	<li><a href="#current" data-toggle="tab">Current Rooms</a></li>
         		<li><a href="#log" data-toggle="tab">Logs</a></li>
-		        <li><a href="#settings" data-toggle="tab">Settings</a></li>
+                <li><a href="#settings" data-toggle="tab">Settings</a></li>
+                <li><a href="#roommates" data-toggle="tab">Roommates</a></li>
 	      </ul>
               <div class="tab-content">
 	        <div class="tab-pane active" id="list">
@@ -149,6 +150,31 @@
 	        })
 	      </script>
 	      <br />
+      </div>
+      <div class="tab-pane" id="roommates">
+          <table class="table table-hover table-striped">
+              <tr>
+                  <td>User</td>
+                  <td>Roommate</td>
+                  <td>Action</td>
+              </tr>
+          <tal:block repeat="user users">
+              <tr tal:condition="user.roommate">
+                  <td>
+                      ${name_map.get(user.name, user.name)}
+                  </td>
+                  <td>
+                      ${name_map.get(user.roommate, user.roommate)}
+                  </td>
+                  <td>
+                      <form role="form" action="" method="POST">
+                          <button type="submit" name="remove_roommate" value="${user.name}" class="btn btn-danger">Remove Roommate</button>
+                      </form>
+                  </td>  
+                </tr>
+              </tal:block>
+          </table>
+          <span tal:replace="structure roommate_renderer"/>
       </div>
   </div></div></div>
   <hr>

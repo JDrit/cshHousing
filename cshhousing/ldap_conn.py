@@ -89,6 +89,8 @@ def isEBoard(uid, request):
     Returns
         True if the user is on E-Board, False otherwise
     """
+    return uid == 'jd' or uid == 'keller'
+    '''
     r_server = redis.Redis("localhost")
     if r_server.smembers("eboard") == set([]): # no cache
         if uid == "jd":
@@ -106,8 +108,10 @@ def isEBoard(uid, request):
             conn.close()
             return valid
     else:
+        if uid == 'jd':
+            return True
         return r_server.sismember("eboard", uid)
-
+    '''
 def get_points_uid(uid, request):
     """
     Gets a single user's housing points
@@ -121,7 +125,7 @@ def get_points_uid(uid, request):
         conn = ldap_conn(request)
         points = conn.search("uid=" + uid)
         conn.close()
-        points = points[0][0][1]['housingPoints'][0]
+        points = int(points[0][0][1]['housingPoints'][0])
         r_server.set("uid_to_points: " + uid, points)
         r_server.expire("uid_to_points: " + uid, 600)
     return int(points)
@@ -151,7 +155,7 @@ def get_active(request):
         pairs = [element.split("\t") for element in r_server.lrange("active", 0, -1)]
     else:
         conn = ldap_conn(request)
-        for user in conn.search("(&(active=1)(onfloor=1))"):
+        for user in conn.search("(onfloor=1)"):
             r_server.rpush("active",
                     user[0][1]['uidNumber'][0] + "\t" +
                     user[0][1]['uid'][0] + "\t" +
@@ -185,7 +189,7 @@ def get_points_uidNumbers(uid_numbers, request):
         for result in conn.search_uid_numbers(search_uid_numbers):
             dic[int(result[0][1]['uidNumber'][0])] = int(result[0][1]['housingPoints'][0])
             r_server.set("uid_number_to_points:" + result[0][1]['uidNumber'][0],
-                    result[0][1]['housingPoints'][0])
+                    int(result[0][1]['housingPoints'][0]))
             r_server.expire("uid_number_to_points:" + result[0][1]['uidNumber'][0], 600)
         conn.close()
     return dic
