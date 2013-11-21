@@ -32,3 +32,20 @@ def add_roommate_pair(uid_number1, uid_number2):
     Returns True if the add was successful, False otherwise
     """
     return True
+
+def get_roommate(uid_number):
+    """
+    Gets the roommate for the given user.
+    Arguments:
+        uid_number: The uid number for the user
+    Returns the uid_number of the user's roommate, False otherwise
+    """
+    pair = DBSession.query(RoommatePair).filter(
+            or_(RoommatePair.occupant1_id == uid_number,
+                RoommatePair.occupant2_id == uid_number)).first()
+    if pair and pair.occupant1_id == uid_number:
+        return pair.occupant2_id
+    elif pair:
+        return pair.occupant1_id
+    else:
+        return False

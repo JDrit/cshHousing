@@ -44,6 +44,19 @@ def signup_for_room(room_number, id1, id2, request):
     else:
         return False
 
+def update_room_points(uid_number):
+    """
+    Udates a given room's points value. This is done when people change rooms,
+    current rooms are updated, etc.
+    Arguments:
+        uid_number: the uid number of the user who is being updated
+    """
+    DBSession.query(Room).filter(or_(
+        Room.occupant1 == uid_number,
+        Room.occupant2 == uid_number)).update({"housing_points":
+            user.get_points(room.occupant1, room.occupant2, room.room_number)}).first()
+
+
 def admin_update_room(room_number, id1, id2, locked, single, request):
     """
     An admin updates a current room, ignoring anything about housing points.
@@ -75,6 +88,16 @@ def get_room(room_number):
     Returns the room object or None
     """
     return DBSession.query(Room).filter(Room.room_number == room_number).first()
+
+def get_users_room(uid_number):
+    """
+    Gets the room that the user is signed up for
+    Arguments:
+        uid_number: the uid number of the given user
+    Returns the room object, or None
+    """
+    return DBSession.query(Room).filter(or_(Room.occupant1_id == uid_number,
+        Room.occupant2_id == uid_number)).first()
 
 def leave_room(uid_number):
     """

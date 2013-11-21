@@ -1,6 +1,6 @@
 from .models import DBSession, Log
 
-def delete_logs(uid_number):
+def clear_logs(uid_number):
     """
     Marks all the logs are cleared, setting their status to False
     Arguments:

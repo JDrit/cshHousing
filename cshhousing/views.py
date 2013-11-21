@@ -10,9 +10,6 @@ from pkg_resources import resource_filename
 from deform_bootstrap.widget import ChosenSingleWidget, DateTimeInputWidget
 from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 from pyramid.view import view_config
-from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy import or_, and_
-from .models import DBSession, Room, User, Log, Final_Log
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import PythonLexer
@@ -22,6 +19,10 @@ from datetime import datetime
 from threading import Timer
 import subprocess
 import requests
+import user
+import log
+import ldap_conn
+from schemas import *
 
 _ = TranslationStringFactory('deform')
 css = HtmlFormatter().get_style_defs('.highlight')
@@ -36,7 +37,6 @@ class Time_Exception(Exception):
     # used for seeing if the admin times for opening and closing are correct
     pass
 
-
 def lock_site():
     """
     This is the function that is run as a delay to lock the site at a given time
@@ -48,18 +48,6 @@ def unlock_site():
     global site_closed
     site_closed = False
 
-def add_log(uid_number, reason, info):
-    DBSession.add(Log(uid_number, reason, info))
-    DBSession.add(Final_Log(uid_number, reason, info))
-
-def send_notification(uid, message, request):
-    uid_number = get_uid_number(uid, request)
-    user = DBSession.query(User).filter_by(name = uid_number).first()
-    if user and user.send:
-        requests.get("https://www.csh.rit.edu/~kdolan/notify/apiBridge.php?username="
-        + uid + "&notification=" + message.replace(" ", "+") + "&apiKey=" +
-        request.registry.settings['api_key'], verify = False)
-
 def translator(term):
     return get_localizer(get_current_request()).translate(term)
     deform_template_dir = resource_filename('deform', 'templates/')
@@ -69,99 +57,49 @@ def translator(term):
 @view_config(context=HTTPNotFound, renderer='templates/404.pt')
 def view_404(request):
     global site_closed
-    admin = isEBoard(request.headers['X-Webauth-User'], request)
-    uid_number = get_uid_number(request.headers['X-Webauth-User'], request)
-    return {'admin': admin, 'locked': site_closed,
-            'next_room': DBSession.query(Room).filter(or_(
-                Room.name1 == uid_number, Room.name2 == uid_number)).first()}
+    admin = user.is_admin(request.headers['X-Webauth-User'])
+    uid_number = ldap_conn.get_uid_number(request.headers['X-Webauth-User'], request)
+    room = room.get_users_room(uid_number)
+    return {'admin': admin, 'locked': site_closed, 'next_room': room}
 
 @view_config(route_name='view_settings', renderer='templates/settings.pt')
 def view_settings(request):
     global site_closed
     msg = None
-    names = []
-    names_validate = []
-    uid = request.headers['X-Webauth-User']
-    uid_number = get_uid_number(uid, request)
-    admin = isEBoard(request.headers['X-Webauth-User'], request)
+    uid_number = ldap_conn.get_uid_number(request.headers['X-Webauth-User'], request)
+    next_room = room.get_users_room(uid_number)
+    admin = user.is_admin(request.headers['X-Webauth-User'])
     none = 'none'
-    names.append((none, '- None -'))
+
+    names, names_validate = user.get_valid_roommates(request.headers['X-Webauth-User'])
+    names.append((none, '- None -')) # adds the info for choosing no roommate
     names_validate.append(none)
 
-    for pair in get_active(request):
-        if not pair[1] == uid:
-            names.append((pair[0], pair[2] + " - " + pair[1]))
-            names_validate.append(pair[0])
+    form = deform.Form(SettingsSchema(uid_number, names, names_validate), buttons = ('submit', 'cancel'))
 
-    uid_number = get_uid_number(request.headers['X-Webauth-User'], request)
-    query = DBSession.query(User).filter_by(name = uid_number).first()
-    status = False if not query else query.send
-
-    class Schema(colander.Schema):
-        send_email = colander.SchemaNode(
-                colander.Bool(),
-                title = 'Send Email',
-                description = 'This will send emails to your CSH account when changes occur to your housing status',
-                widget = deform.widget.CheckboxWidget(),
-                default = status)
-        roommate = colander.SchemaNode(
-                colander.String(),
-                title='Roommate\'s name',
-                widget=ChosenSingleWidget(values=names),
-                validator=colander.OneOf(names_validate),
-                missing=None,
-                description = 'You need to set this to whoever you want to be roommates with so that your they will be able to control your housing status. If you do not do this, then no one will be able to sign you up with them',
-                default = query.roommate if query and query.roommate else none)
-
-
-    form = deform.Form(Schema(), buttons = ('submit', 'cancel'))
-    form_render = form.render()
     if ('submit', u'submit') in request.POST.items():
         try:
             appstruct = form.validate(request.POST.items())
-            if not query:
-                DBSession.add(User(uid_number, send = appstruct['send_email']))
+            if appstruct['roommate'] != none:
+                roommate_id = int(appstruct['roommate'])
             else:
-                DBSession.query(User).filter_by(name = uid_number).update(
-                        {'send': appstruct['send_email'],
-                            'roommate': int(appstruct['roommate']) if appstruct['roommate'] != none else None})
-            status = appstruct['send_email']
+                roommate_id = None
+            user.update_user_info(uid_number, send_email = appstruct['send_email'],
+                    roommate_id = roommate_id)
+
             msg = 'Your user settings have been updated'
 
-            class Schema(colander.Schema):
-                send_email = colander.SchemaNode(
-                        colander.Bool(),
-                        title = 'Send Email',
-                        description = 'This will send emails to your CSH account when changes occur to your housing status',
-                        widget = deform.widget.CheckboxWidget(),
-                        default = status)
-                roommate = colander.SchemaNode(
-                        colander.String(),
-                        title='Roommate\'s name',
-                        widget=ChosenSingleWidget(values=names),
-                        validator=colander.OneOf(names_validate),
-                        missing=None,
-                        description = 'This person will be able to change your housing status' +
-                        'for you. Select the person you want to room with so that they can select a room for you',
-                        default = int(appstruct['roommate']) if appstruct['roommate'] != none else none)
-
-
-            form_render = deform.Form(Schema(), buttons=('submit', 'cancel')).render()
-            transaction.commit()
+            form = deform.Form(SettingsSchema(uid_number, names, names_validate), buttons = ('submit', 'cancel'))
         except deform.ValidationFailure, e:
-            form_render = e.render()
-    next_room = DBSession.query(Room).filter(or_(
-        Room.name1 == uid_number, Room.name2 == uid_number)).first()
-    return {'admin': admin, 'form': form_render, 'msg': msg,
-            'locked': site_closed, 'next_room': next_room}
+            form = e
 
+    return {'admin': admin, 'form': form.render(), 'msg': msg,
+            'locked': site_closed, 'next_room': next_room}
 
 @view_config(route_name='view_delete_logs')
 def view_delete_logs(request):
-    settings = request.registry.settings
-    if isEBoard(request.headers['X-Webauth-User'], request):
-        DBSession.query(Log).delete()
-        transaction.commit()
+    if user.is_admin(request.headers['X-Webauth-User']):
+        log.clear_logs(ldap_conn.get_uid_number(request.headers['X-Webauth-User']))
         request.session.flash("Logs cleared")
         return HTTPFound(request.route_url('view_admin'))
     else:
@@ -169,33 +107,18 @@ def view_delete_logs(request):
 
 @view_config(route_name='view_delete_current')
 def view_delete_current(request):
-    settings = request.registry.settings
-    conn = ldap_conn(request)
-
-    if isEBoard(request.headers['X-Webauth-User'], request):
+    """
+    This is called when an admin decides to delete a current room assignment
+    """
+    if user.is_admin(request.headers['X-Webauth-User']):
         try:
-            user = DBSession.query(User).filter_by(name = request.matchdict['name']).one()
-            DBSession.delete(user)
-
-            room = DBSession.query(Room).filter(or_(Room.name1 == int(request.matchdict['name']), Room.name2 == int(request.matchdict['name']))).first()
-            if room != None:
-                room.points = sum(get_points_uidNumbers([room.name1, room.name2], request).values())
-                if not DBSession.query(User).filter(or_( # squatting points
-                    and_(User.name == room.name1, User.number == room.number),
-                    and_(User.name == room.name2, User.number == room.number)
-                    )).first() == None:
-                    room.points += .5
-                DBSession.add(room)
+            uid_number = int(request.matchdict['name'])
+            user.remove_current_room(uid_number)
             request.session.flash("Successfully deleated current room assignment")
-            result = conn.search("uidNumber=" + request.matchdict['name'])
-            uid = result[0][0][1]['uid'][0] + "(" + str(request.matchdict['name']) + ")" if result != [] else str(request.matchdict['name'])
-            add_log(get_uid_number(request.headers['X-Webauth-User'], request), "delete current", uid + "'s current room was deleted")
         except NoResultFound, e:
             request.session.flash("Warning: could not delete current room assignment")
-        conn.close()
         return HTTPFound(request.route_url('view_admin'))
     else:
-        conn.close()
         return HTTPFound(request.route_url('view_main'))
 
 @view_config(route_name='view_admin', renderer='templates/admin.pt')
@@ -964,7 +887,6 @@ def view_join(request):
                                 "room " + str(appstruct['roomNumber']) + " with " +
                                 partnerString + ", kicking " + kickString)
                         else: # joined with partner and did not kick anyone
-                            print 'fdsjahjkfldskhfjkds'
                             for name in names:
                                 if name[0] == str(appstruct['partnerName']):
                                     partner = int(appstruct['partnerName'])
