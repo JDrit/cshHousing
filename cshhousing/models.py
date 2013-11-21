@@ -1,6 +1,6 @@
-from sqlalchemy import Column, Integer, Text, Boolean, DateTime, Date, Float
+from sqlalchemy import Column, Integer, Text, Boolean, DateTime, Date, Float, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.orm import scoped_session, sessionmaker, relationship
 from zope.sqlalchemy import ZopeTransactionExtension
 import datetime
 
@@ -20,8 +20,8 @@ class Room(Base):
     """
     __tablename__ = 'rooms'
     room_number = Column(Integer, primary_key = True)
-    occupant_id1 = Column(Integer)
-    occupant_id2 = Column(Integer)
+    occupant1 = Column(Integer, ForeignKey('users.uid_number'))
+    occupant2 = Column(Integer, ForeignKey('users.uid_number'))
     is_locked = Column(Boolean, default = False)
     housing_points = Column(Float, default = 0)
     is_single = Column(Boolean, default = False)
