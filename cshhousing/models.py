@@ -19,20 +19,20 @@ class Room(Base):
     single: if the room only allows one ocupant
     """
     __tablename__ = 'rooms'
-    number = Column(Integer, primary_key = True)
-    name1 = Column(Integer)
-    name2 = Column(Integer)
-    locked = Column(Boolean, default = False)
-    points = Column(Float, default = 0)
-    single = Column(Boolean, default = False)
+    room_number = Column(Integer, primary_key = True)
+    occupant_id1 = Column(Integer)
+    occupant_id2 = Column(Integer)
+    is_locked = Column(Boolean, default = False)
+    housing_points = Column(Float, default = 0)
+    is_single = Column(Boolean, default = False)
 
     def __init__(self, number, locked = False, single = False):
-        self.number = number
-        self.locked = locked
-        self.single = single
+        self.room_number = number
+        self.is_locked = locked
+        self.is_single = single
 
     def __str__(self):
-        return str(self.number) + ", " + str(self.name1) + ", " + str(self.name2)
+        return str(self.room_number) + ", " + str(self.occupant_id2) + ", " + str(self.occupant_id1)
 
 class User(Base):
     """
@@ -43,19 +43,33 @@ class User(Base):
     roommate: another user that is allowed to control the user's housing status
     """
     __tablename__ = 'users'
-    name = Column(Integer, primary_key = True)
-    number = Column(Integer)
-    send = Column(Boolean, default = False)
-    roommate = Column(Integer)
+    uid_number = Column(Integer, primary_key = True)
+    current_room = Column(Integer)
+    send_notifications = Column(Boolean, default = False)
+    roommate_pair = relationship('RoommatePair')
 
-    def __init__(self, name, number = None, send = False, roommate = None):
-        self.name = name
-        self.number = number
-        self.send = send
-        self.roommate = roommate
+    def __init__(self, number, room_number = None, send = False):
+        self.uid_number = number
+        self.current_room = room_number
+        self.send_notifications = send
 
     def __str__(self):
-        return "uid number: " + str(self.name) + ", room: " + str(self.number) + ", roommate: " + str(self.roommate)
+        return "uid number: " + str(self.uid_number) + ", room: " + str(self.current_room)
+
+class RoommatePair(Base):
+    """
+    This is used to show which users are roommates with each other
+    roommate1_id: the uid number for the first roommate
+    roommate2_id: the uid number for the second roommate
+    """
+    __tablename__ = 'roommates'
+    id = Column(Integer, primary_key = True, autoincrement = True)
+    roommate1_id = relationship(Integer, ForeignKey('User.uid_number'))
+    roommate2_id = relationship(Integer, ForeignKey('User.uid_number'))
+
+    def __init__(self, id1, id2):
+        self.roommate1_id = id1
+        self.roommate2_id = id2
 
 class Log(Base):
     """
@@ -65,6 +79,7 @@ class Log(Base):
     uid_number: the uid number of the user that did the action
     log_type: the type of action that took place
     log_data: a description of the action
+    status: True if the log message should be displayed, False otherwise
     """
     __tablename__ = 'logs'
     index = Column(Integer, primary_key = True, autoincrement = True)
@@ -72,25 +87,7 @@ class Log(Base):
     uid_number = Column(Integer)
     log_type = Column(Text)
     log_data = Column(Text)
-
-    def __init__(self, uid_number, log_type, log_data):
-        self.uid_number = uid_number
-        self.log_type = log_type
-        self.log_data = log_data
-
-    def __str__(self):
-        return str(self.date) + " : " + self.log_type + " : " + self.log_data
-
-class Final_Log(Base):
-    """
-    Same thing as the Log table but this table never gets cleared
-    """
-    __tablename__ = 'final logs'
-    index = Column(Integer, primary_key = True, autoincrement = True)
-    date = Column(DateTime, default = datetime.datetime.now())
-    uid_number = Column(Integer)
-    log_type = Column(Text)
-    log_data = Column(Text)
+    status = Column(Boolean, default = True)
 
     def __init__(self, uid_number, log_type, log_data):
         self.uid_number = uid_number
