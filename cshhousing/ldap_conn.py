@@ -72,8 +72,10 @@ class ldap_conn:
         Returns:
             the uid number of the user or None
         """
-        print username
         return int(self.search("uid=" + username)[0][0][1]['uidNumber'][0])
+
+    def get_username(self, uid_number):
+        return self.search("uidNumber=" + int(uid_number))[0][0][1]['uid'][0]
 
     def close(self):
         """
@@ -90,28 +92,7 @@ def isEBoard(uid, request):
         True if the user is on E-Board, False otherwise
     """
     return uid == 'jd' or uid == 'keller'
-    '''
-    r_server = redis.Redis("localhost")
-    if r_server.smembers("eboard") == set([]): # no cache
-        if uid == "jd":
-            return True
-        else:
-            valid = False
-            conn = ldap_conn(request)
-            result = conn.search("cn=eboard",
-                    "ou=Groups,dc=csh,dc=rit,dc=edu")
-            for member in result[0][0][1]['member']:
-                r_server.sadd("eboard",
-                        member.split(",")[0].split("=")[1])
-                valid = (uid == member.split(",")[0].split("=")[1])
-            r_server.expire("eboard", 600)
-            conn.close()
-            return valid
-    else:
-        if uid == 'jd':
-            return True
-        return r_server.sismember("eboard", uid)
-    '''
+
 def get_points_uid(uid, request):
     """
     Gets a single user's housing points
@@ -129,6 +110,24 @@ def get_points_uid(uid, request):
         r_server.set("uid_to_points: " + uid, points)
         r_server.expire("uid_to_points: " + uid, 600)
     return int(points)
+
+def get_username(uid_number, request):
+    """
+    Gets the username for the username with the given uid number.
+    Adds it to the cached data.
+    Arguments:
+        uid_number: the uid number for the user
+    Returns the username for the user
+    """
+    r_server = redis.Redis('localhost')
+    username = r_server.get('uid_to_username:' + int(uid_number))
+    if username:
+        conn = ldap_conn(request)
+        username = conn.get_username(uid_number)
+        conn.close()
+        r_server.set('uid_to_username:' + int(uid_number), username)
+        r_server.expire('uid_to_username:' + int(uid_number), 600)
+    return username
 
 def get_uid_number(username, request):
     r_server = redis.Redis('localhost')

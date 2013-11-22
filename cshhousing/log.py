@@ -18,3 +18,10 @@ def add_log(uid_number, reason, info):
         info: the description of the action
     """
     DBSession.add(Log(uid_number, reason, info))
+
+def get_logs():
+    """
+    Gets all the active logs for the system
+    """
+    return DBSession.query(Log).filter(Log.status == True
+            ).order_by(Log.index.desc()).all()

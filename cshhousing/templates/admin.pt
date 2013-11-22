@@ -79,18 +79,16 @@
 	           </tr>
 	           <tr tal:repeat="room rooms">
 		     <td>${room.number}</td>
-		     <?python name1 = name_map.get(room.name1, room.name1) if not room.single else "-SINGLE-" if room.name1 == None else name_map.get(room.name1, room.name1) ?>
-		     <td>${name1}</td>
-		     <?python name2 = name_map.get(room.name2, room.name2) if not room.single else "-SINGLE-" if room.name2 == None and name1 != "-SINGLE-" else name_map.get(room.name2, room.name2) ?>
-		     <td>${name2}</td>
+		     <td>${room.name1}</td>
+		     <td>${room.name2}</td>
 		     <td>${room.points}</td>
 		     <td>${room.locked}</td>
 		     <td>
-                       <a href="/edit/${room.number}">
-                         <button type="button" class="btn btn-default" action="">Edit</button>
-                       </a>
-                     </td>
-	           </tr>
+                <a href="/edit/${room.number}">
+                    <button type="button" class="btn btn-default" action="">Edit</button>
+                </a>
+            </td>
+	        </tr>
                 </table>
 		</div>
 		<div class="tab-pane" id="current">

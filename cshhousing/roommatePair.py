@@ -14,14 +14,19 @@ def are_roommates(uid1, uid2):
         and_(RoommatePair.roommate1_id == uid2, RoommatePair.roommate2_id == uid1))).first()
 
 
-def remove_pair(uid_number):
+def remove_pair(roommate_id):
     """
     Removes a roommate pair from the system.
     Arguments:
         uid_number: one of the user's uid number that are being removed
     Returns True if the pair was removed, False otherwise
     """
-    return True
+    room = DBSession.query(RoommatePair).first()
+    if room:
+        DBSession.delete(room)
+        return True
+    else:
+        return False
 
 def add_roommate_pair(uid_number1, uid_number2):
     """
@@ -29,9 +34,16 @@ def add_roommate_pair(uid_number1, uid_number2):
     Arguments:
         uid_number1: the uid number of the first user
         uid_number2: the uid number of the second user
-    Returns True if the add was successful, False otherwise
     """
-    return True
+    current_pairs = DBSession.query(RoommatePair).filter(or_(
+        RoommatePair.occupant1 == uid_number1,
+        RoommatePair.occupant1 == uid_number2,
+        RoommatePair.occupant2 == uid_number1,
+        RoommatePair.occupant2 == uid_number2)).all()
+    for pair in current_pairs:
+        DBSession.delete(pair)
+
+    DBSession.add(RoommatePair(uid_number1, uid_number2))
 
 def get_roommate(uid_number):
     """

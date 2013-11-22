@@ -2,7 +2,7 @@ import ldap_conn
 import request
 import room
 
-def get_points(request, uid_number1, uid_number, room_number = None):
+def get_points(request, uid_number1, uid_number = None, room_number = None):
     """
     Gets the points that the given users have.
     Arguments:
@@ -126,9 +126,12 @@ def create_current_room(uid_number, room_number):
         uid_number: the uid number of the user being updated
         room_number: the room number of the current room assignment
     """
-    DBSession.query(User).filter(
-            User.uid_number == uid_number).update(
-                    {'current_room': room_number}).first()
+    user = DBSession.query(User).filter(User.uid_number == uid_number).first()
+    if user:
+        user.current_room = room_number
+    else:
+        user = User(uid_number, room_number = room_number)
+    DBSession.add(user)
 
 def get_user_names(uid_numbers, request):
     """
@@ -139,3 +142,16 @@ def get_user_names(uid_numbers, request):
     Returns the list of uid numbers with the associated usernames
     """
     return []
+
+def get_current_room(uid_number):
+    """
+    Gets the room number of the user's current room.
+    Arguments:
+        uid_number: the uid number of the user
+    Returns int of the room number
+    """
+    result = DBSession.query(User.current_room).filter(User.uid_number == uid_number).first()
+    if result[0]:
+        return result[0]
+    else:
+        return None

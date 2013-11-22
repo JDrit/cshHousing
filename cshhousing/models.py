@@ -23,7 +23,6 @@ class Room(Base):
     occupant1 = Column(Integer, ForeignKey('users.uid_number'))
     occupant2 = Column(Integer, ForeignKey('users.uid_number'))
     is_locked = Column(Boolean, default = False)
-    housing_points = Column(Float, default = 0)
     is_single = Column(Boolean, default = False)
 
     def __init__(self, number, locked = False, single = False):
@@ -74,7 +73,7 @@ class RoommatePair(Base):
 class Log(Base):
     """
     The deletable logs that get displayed in the admin section
-    index: a primary, autoincrementing integer
+    inde/: a primary, autoincrementing integer
     date: the time the log event occurred
     uid_number: the uid number of the user that did the action
     log_type: the type of action that took place

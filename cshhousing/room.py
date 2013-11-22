@@ -30,32 +30,19 @@ def signup_for_room(room_number, id1, id2, request):
         return False
 
     new_points = user.get_points(request, id1, id2, room_number)
-    if new_points > room.housing_points:
+    old_points = user.get_points(request, room.occupant1, room.occupant2, room_number)
+    if new_points > old_points:
         user.send_notification(room.occupant1, "You have been kicked from room " + str(room.room_number), request)
         user.send_notification(room.occupant2, "You have been kicked from room " + str(room.room_number), request)
         user.send_notification(id1, "You have joined room " + str(room.room_number), request)
         user.send_notification(id2, "You have joined room " + str(room.room_number), request)
         room.occupant1 = id1
         room.occupant2 = id2
-        room.housing_points = new_points
         DBSession.add(room)
 
         return True
     else:
         return False
-
-def update_room_points(uid_number):
-    """
-    Udates a given room's points value. This is done when people change rooms,
-    current rooms are updated, etc.
-    Arguments:
-        uid_number: the uid number of the user who is being updated
-    """
-    DBSession.query(Room).filter(or_(
-        Room.occupant1 == uid_number,
-        Room.occupant2 == uid_number)).update({"housing_points":
-            user.get_points(room.occupant1, room.occupant2, room.room_number)}).first()
-
 
 def admin_update_room(room_number, id1, id2, locked, single, request):
     """
@@ -71,7 +58,27 @@ def admin_update_room(room_number, id1, id2, locked, single, request):
     DBSession.query(Room).filter(Room.room_number == room_number).update(
             {'occupant1': id1, 'occupant2': id2,
                 'locked': locked, 'single': single,
-                'housing_poins': user.get_points(request, id1, id2, room_number)}).first()
+                'housing_points': user.get_points()}).first()
+
+def prepare_rooms_for_html(request):
+    """
+    Gets all the rooms to be used to display and adds the usernames
+    for the occupants to the objects
+    Arguments:
+        request: the HTML request object used to get the LDAP settings
+    Returns the rooms with the usernames and points added to it
+    """
+    rooms = DBSession.query(Room).all()
+    uid_numbers = []
+    for room in rooms:
+        if room.occupant1:
+            setattr(room, 'name1', ldap_conn.get_username(room.occupant1))
+            uid_numbers.append(room.occupant1)
+        if room.occupant2:
+            setattr(room, 'name2', ldap_conn.get_username(room.occupant2))
+            uid_numbers.append(room.occupant2)
+        setattr(room, 'points', ldap_conn.get_points_uidNumbers(uid_numbers, request))
+    return rooms
 
 def get_rooms():
     """
@@ -88,6 +95,15 @@ def get_room(room_number):
     Returns the room object or None
     """
     return DBSession.query(Room).filter(Room.room_number == room_number).first()
+
+def get_valid_rooms():
+    numbers = []
+    numbers_validate = []
+    for room in get_rooms():
+        numbers.append((room.number, room.number))
+        numers.validate.append(room.number)
+    return numbers, numbers_validate
+
 
 def get_users_room(uid_number):
     """
@@ -115,3 +131,4 @@ def leave_room(uid_number):
     else:
         room.occupant2 = None
     DBSession.add(room)
+    log.add_log(uid_number, "leave", "user left room #" + room.room_number)

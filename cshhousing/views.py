@@ -114,7 +114,7 @@ def view_delete_current(request):
         try:
             uid_number = int(request.matchdict['name'])
             user.remove_current_room(uid_number)
-            request.session.flash("Successfully deleated current room assignment")
+            request.session.flash("Successfully deleted current room assignment")
         except NoResultFound, e:
             request.session.flash("Warning: could not delete current room assignment")
         return HTTPFound(request.route_url('view_admin'))
@@ -124,181 +124,39 @@ def view_delete_current(request):
 @view_config(route_name='view_admin', renderer='templates/admin.pt')
 def view_admin(request):
     global site_closed, close_time, lock_thread, open_thread, open_time
-    numbers_validate = []
-    names_validate = []
-    numbers = []
-    names = []
-    conn = ldap_conn(request)
-    uid_number = get_uid_number(request.headers['X-Webauth-User'], request)
 
-    if isEBoard(request.headers['X-Webauth-User'], request):
-        rooms = DBSession.query(Room).order_by(Room.number).all()
-        room_numbers = set() # used to verify that same room # are not being used
-        name_map = dict()
-        points_map = dict()
-        ids = set()
-        for room in rooms:
-            numbers.append((room.number, room.number))
-            numbers_validate.append(room.number)
-            room_numbers.add(room.number)
-            if room.name1 is not None:
-                ids.add(room.name1)
-            if room.name2 is not None:
-                ids.add(room.name2)
+    if user.is_admin(request.headers['X-Webauth-User']):
+        uid_number = ldap_conn.get_uid_number(request.headers['X-Webauth-User'], request)
 
-        for pair in get_active(request):
-            names.append((pair[0], pair[1] + " - " + pair[2]))
-            names_validate.append(pair[0])
+        # gets the info for valid rooms and users
+        room_numbers, numbers_validate = room.get_valid_rooms()
+        names, names_validate = user.get_valid_roommates(request.headers['X-Webauth-User'])
 
-        class NewRoomate(colander.Schema):
-            username = colander.SchemaNode(
-                    colander.String(),
-                    title = 'Username',
-                    widget = ChosenSingleWidget(values = names),
-                    validator = colander.OneOf(names_validate),
-                    missing = colander.required)
-            roommate = colander.SchemaNode(
-                    colander.String(),
-                    title = 'Roommate\'s name',
-                    widget = ChosenSingleWidget(values = names),
-                    validator = colander.OneOf(names_validate),
-                    missing = colander.required)
-
-        class New_Room(colander.Schema):
-            number = colander.SchemaNode(colander.Integer(),
-                    missing = colander.required,
-                    validator = colander.Function(
-                        lambda value: not value in room_numbers))
-            locked = colander.SchemaNode(colander.Bool())
-            single = colander.SchemaNode(colander.Bool())
-
-        class New_Rooms(colander.SequenceSchema):
-            new_room = New_Room()
-
-        class New_Rooms_Schema(colander.Schema):
-            new_rooms = New_Rooms()
-
-        class Current_Room(colander.Schema):
-            name = colander.SchemaNode(colander.Integer())
-
-        class Current_Room(colander.Schema):
-            name = colander.SchemaNode(
-                    colander.String(),
-                    title = 'Member\'s Name',
-                    widget = ChosenSingleWidget(values = names),
-                    validator = colander.OneOf(names_validate),
-                    missing = colander.required)
-            number = colander.SchemaNode(
-                    colander.Integer(),
-                    title = 'Room Number',
-                    widget = ChosenSingleWidget(values = numbers),
-                    validator = colander.OneOf(numbers_validate),
-                    missing = colander.required)
-
-        class Current_Rooms(colander.SequenceSchema):
-            current_room = Current_Room()
-
-        class Current_Rooms_Schema(colander.Schema):
-            current_rooms = Current_Rooms()
-
-        class Time_Schema(colander.Schema):
-            lock = colander.SchemaNode(
-                    colander.Boolean(),
-                    missing = colander.required,
-                    default = site_closed,
-                    description = "Locks the site so no users can change their status")
-            open_time = colander.SchemaNode(
-                    colander.DateTime(),
-                    widget = DateTimeInputWidget(),
-                    missing = None,
-                    default = open_time,
-                    description = "Auto opens the site at the given time")
-            close_time = colander.SchemaNode(
-                    colander.DateTime(),
-                    widget = DateTimeInputWidget(),
-                    missing = None,
-                    default = close_time,
-                    description = "Auto closes the site at a given time")
-
-        roommate_form = deform.Form(NewRoomate(), buttons=('submit',))
-
-        schema = New_Rooms_Schema()
-        form = deform.Form(schema, buttons=('submit',))
+        # forms for the admin panel
+        roommate_form = deform.Form(NewRoommate(names, names_validate), buttons=('submit',))
+        form = deform.Form(NewRoomsSchema(room_numbers), buttons=('submit',))
         form['new_rooms'].widget = deform.widget.SequenceWidget(min_len=1)
-        form_render = form.render()
-        current_rooms_schema = Current_Rooms_Schema()
+        current_rooms_schema = Current_Rooms_Schema(names, names_validate, numbers, numbers_validate)
         current_rooms_form = deform.Form(current_rooms_schema, buttons=('submit',))
-        current_rooms_form_render = current_rooms_form.render()
-        time_set = deform.Form(Time_Schema(), buttons=('submit',))
-        msgs = request.session.pop_flash()
-        print request.POST
+        time_set = deform.Form(TimeSchema(site_closed, open_time, close_time), buttons=('submit',))
+
         if request.method == 'POST':
+            # delete current room assignments
             if 'remove_roommate' in [item[0] for item in request.POST.items()]:
-                user_id = request.POST.get('remove_roommate')
-                user = DBSession.query(User).filter(User.name == user_id).first()
-                if user:
-                    user.roommate = None
-                    DBSession.add(user)
-                    msgs.append('Successfully removed user\'s roommate')
-            # new room was given
-            elif ('__start__', u'new_rooms:sequence') in request.POST.items():
-                try:
-                    appstruct = form.validate(request.POST.items())
-                    rooms_added = 0
-                    for new_room in appstruct['new_rooms']:
-                        if not new_room['number'] in room_numbers:
-                            room = Room(new_room['number'], new_room['locked'], new_room['single'])
-                            DBSession.add(room)
-                            room_numbers.add(new_room['number'])
-                            rooms_added += 1
-                            add_log(uid_number, "new room added",
-                                    "added room #" + str(new_room['number']))
-                            rooms.append(room)
-                    rooms.sort(key = lambda room: room.number)
-                    if len(appstruct['new_rooms']) > 1:
-                        msgs.append('Successfully added ' + str(rooms_added) +
-                                ' new rooms')
-                    else:
-                        msgs.append('Successfully added the new room')
-
-                except deform.ValidationFailure, e:
-                    msgs.append('Warning: could not added new rooms')
-                    form_render = e.render()
-
+                if roommatePair.remove_pair(int(request.POST.get('roommate_id'))):
+                    request.session.flash('Successfully removed user\'s roommate')
+                else:
+                    request.session.flash('Failed to remove roommate pair')
             # current room was given
             elif ('__start__', u'current_rooms:sequence') in request.POST.items():
                 try:
                     appstruct = current_rooms_form.validate(request.POST.items())
-                    rooms_added = 0
-                    for current_room in appstruct['current_rooms']:
-                        # if the user does not exist yet
-                        if DBSession.query(User).filter_by(
-                                name = current_room['name']).update(
-                                        {'number': current_room['number']}) == 0:
-                            user = User(current_room['name'], current_room['number'])
-                            DBSession.add(user)
-                            rooms_added += 1
-                            add_log(uid_number, "current room added",
-                                    "added room #" + str(current_room['number']))
-                        room = DBSession.query(Room).filter(
-                                or_(Room.name1 == current_room['name'],
-                                    Room.name2 == current_room['name'])).first()
-                        if room != None:
-                            room.points = sum(
-                                    get_points_uidNumbers([room.name1, room.name2], request).values())
-                            if not DBSession.query(User).filter(or_( # squatting points
-                                and_(User.name == room.name1, User.number == room.number),
-                                and_(User.name == room.name2, User.number == room.number)
-                                )).first() == None:
-                                room.points += .5
-                            DBSession.add(room)
-                    if len(appstruct['current_rooms']) == 1:
-                        msgs.append('Successfully added current room')
-                    else:
-                        msgs.append('Successfully added current rooms')
+                    for current_room in appstruct['current_rooms']: # new current rooms
+                        user.create_current_room(int(current_room['uid_number']), int(current['room_number']))
+                    request.session.flash('Successfully added current room(s)')
                 except deform.ValidationFailure, e:
-                    msgs.append('Warning: Could not add current room assignment')
-                    current_rooms_form_render = e.render()
+                    request.session.flash('Warning: Could not add current room assignment')
+                    current_rooms_form = e
             # settings were given
             elif ('__start__', u'close_time:mapping') in request.POST.items():
                 try:
@@ -324,44 +182,37 @@ def view_admin(request):
                         lock_thread = Timer((close_time.replace(tzinfo=None) -
                             datetime.now()).seconds, lock_site)
                         lock_thread.start()
-                        add_log(uid_number, "lock", "site will close at "  + str(close_time))
-                        msgs.append("Site will close at " + str(close_time))
+                        log.add_log(uid_number, "lock", "site will close at "  + str(close_time))
+                        request.session.flash("Site will close at " + str(close_time))
                     if open_time != None:
                         open_thread = Timer((open_time.replace(tzinfo=None) -
                             datetime.now()).seconds, unlock_site)
                         open_thread.start()
-                        add_log(uid_number, "lock", "site will now open at " + str(open_time))
-                        msgs.append("Site will open at " + str(open_time))
+                        log.add_log(uid_number, "lock", "site will now open at " + str(open_time))
+                        request.session.flash("Site will open at " + str(open_time))
                     if site_closed:
-                        add_log(uid_number, "lock", "site was closed")
-                        msgs.append("Site is now closed")
+                        log.add_log(uid_number, "lock", "site was closed")
+                        request.session.flash("Site is now closed")
                     else:
-                        add_log(uid_number, "lock", "site was opened")
+                        log.add_log(uid_number, "lock", "site was opened")
                         msgs.append("Site is now open")
                 except deform.ValidationFailure, e:
-                    msgs.append('Warning: Could not parse time inputs')
+                    request.session.flash('Warning: Could not parse time inputs')
                 except Time_Exception, e:
-                    msgs.append("Warning: " + str(e))
-            else:
+                    request.session.flash("Warning: " + str(e))
+            else: # adds a new roommate pair
                 try:
                     appstruct = roommate_form.validate(request.POST.items())
-                    if appstruct['username'] != appstruct['roommate']:
-                        user = DBSession.query(User).filter(User.name == int(appstruct['username'])).first()
-                        if user:
-                            user.roommate = int(appstruct['roommate'])
-                            DBSession.add(user)
-                        else:
-                            user = User(name = int(appstruct['username']), roommate = int(appstruct['roommate']))
-                            DBSession.add(user)
-
-                        msgs.append('Successfully updaed roommate pairs')
-                    else:
-                        msgs.append('Warning: People cannot room with themselves')
+                    roommatePair.add_roommate_pair(int(appstruct['uid_number1']), int(appstruct['uid_number2']))
+                    request.session.flash('Successfully updaed roommate pairs')
                 except deform.ValidationFailure, e:
-                    msgs.append('Warning: Could not parse input')
+                    request.session.flash('Warning: Could not parse input')
 
-        logs = DBSession.query(Log).order_by(Log.index.desc()).limit(100).all()
-        users = DBSession.query(User).all()
+        logs = log.get_logs()
+        rooms = prepare_rooms_for_html(request)
+
+        # STILL NEED TO FINISH ------------------------------------------------
+
         for user in users:
             ids.add(user.name)
             ids.add(user.roommate)
@@ -566,79 +417,41 @@ def view_admin_edit(request):
 
 @view_config(route_name='view_leave')
 def view_leave(request):
-    """
-    Checks to see if the user is in a room, and if they are, removes the user and
-    recalcuates the points for the given room
-    """
     global site_closed
+
     if site_closed:
         return HTTPFound(location = request.route_url('view_main'))
 
-    conn = ldap_conn(request)
     uid = request.headers['X-Webauth-User']
-    result = conn.search("uid=" + uid)[0][0][1]
-    conn.close()
-    uid_number = int(result['uidNumber'][0])
-    points = int(result['housingPoints'][0])
-    if uid_number == None:
-        return HTTPFound(location=request.route_url('view_main'))
+    uid_number = ldap_conn.get_uid_number(uid)
+    points = user.get_points(uid_number)
+    room = room.get_users_room(uid_number)
+
+    if room: # user is in a room
+        if room.locked:
+            request.session.flash("Warning: Room is locked, you cannot leave")
+            return HTTPFound(location = request.route_url('view_main'))
+        room.leave_room(uid_number)
+        request.session.flash("Successfully left room #" + str(room.number))
     else:
-        room = DBSession.query(Room).filter(or_(Room.name1 == uid_number, Room.name2 == uid_number)).first()
-        if not room == None:
-            if room.locked:
-                request.session.flash("Warning: Room is locked, you cannot leave")
-                return HTTPFound(location = request.route_url('view_main'))
-            if room.name1 == uid_number:
-                room.name1 = None
-            else:
-                room.name2 = None
-
-            # recalculates the points for the given room
-            room.points = sum(get_points_uidNumbers([room.name1, room.name2], request).values())
-            if not DBSession.query(User).filter(or_(
-                and_(User.name == room.name1, User.number == room.number),
-                and_(User.name == room.name2, User.number == room.number))).first() == None:
-                room.points += .5
-
-            DBSession.add(room)
-            add_log(uid_number, "leave", "user left room " + str(room.number))
-            request.session.flash("Successfully left room #" + str(room.number))
-            transaction.commit()
-        else:
-            request.session.flash('You are not currently in a room')
-        return HTTPFound(location=request.route_url('view_main'))
+        request.session.flash('You are not currently in a room')
+    return HTTPFound(location=request.route_url('view_main'))
 
 @view_config(route_name='view_main', renderer='templates/index.pt')
 def view_main(request):
-    if 'X-Webaut-User' not in request.headers:
-        print 'bad'
     global site_closed, close_time
-    session = request.session
-    msgs = session.pop_flash()
-    conn = ldap_conn(request)
-    rooms = DBSession.query(Room).order_by(Room.number).all()
-    name_map = dict()
-    ids = []
-    next_room = None
+
     uid = request.headers['X-Webauth-User']
     uid_number = get_uid_number(uid, request)
-    for room in rooms:
-        if room.name1 == uid_number or room.name2 == uid_number:
-            next_room = room.number
-        if room.name1 is not None:
-            ids.append(room.name1)
-        if room.name2 is not None:
-            ids.append(room.name2)
-    if not ids == []:
-        for user in conn.search_uid_numbers(ids):
-            name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['cn'][0]
-        conn.close()
-    current_room = DBSession.query(User).filter_by(name=get_uid_number(uid, request)).first()
-    current_room = current_room.number if not current_room == None else None
-    admin = isEBoard(uid, request)
-    points = get_points_uid(uid, request)
-    return {'name_map': name_map, 'rooms': rooms, 'admin': admin, 'points': points,
-            'current':  current_room, 'next_room': next_room, 'msgs': msgs,
+    rooms = room.prepare_rooms_for_html()
+    next_room = room.get_users_room(uid_number)
+    current_room = user.get_current_room(uid_number)
+    admin = user.is_admin(uid)
+    points = user.get_points(request, uid_number)
+
+    return {'rooms': rooms, 'admin': admin, 'points': points,
+            'current':  current_room, 'next_room': next_room,
+            'msgs': request.session.pop_flash(),
             'locked': site_closed, 'close_time': close_time}
 
 @view_config(route_name='view_join', renderer='templates/join.pt')
