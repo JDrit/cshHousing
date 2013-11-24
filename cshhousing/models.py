@@ -12,8 +12,8 @@ class Room(Base):
     """
     This stores information on the actual rooms that are available
     number: the room's number
-    name1: the uidNumber of the first ocupant
-    name2: the uidNumber of the seconds ocupant
+    occpant1: the uidNumber of the first ocupant
+    occpant2: the uidNumber of the seconds ocupant
     locked: boolean if the room is locked so no one can sign up for it
     points: the number of points the current ocupants have
     single: if the room only allows one ocupant
@@ -73,7 +73,7 @@ class RoommatePair(Base):
 class Log(Base):
     """
     The deletable logs that get displayed in the admin section
-    inde/: a primary, autoincrementing integer
+    index: a primary, autoincrementing integer
     date: the time the log event occurred
     uid_number: the uid number of the user that did the action
     log_type: the type of action that took place

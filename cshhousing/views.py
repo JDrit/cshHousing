@@ -131,6 +131,10 @@ def view_admin(request):
         # gets the info for valid rooms and users
         room_numbers, numbers_validate = room.get_valid_rooms()
         names, names_validate = user.get_valid_roommates(request.headers['X-Webauth-User'])
+        logs = log.get_logs()
+        rooms = prepare_rooms_for_html(request)
+        next_room = room.get_users_room(user.get_users(uid_number(uid_number)))
+
 
         # forms for the admin panel
         roommate_form = deform.Form(NewRoommate(names, names_validate), buttons=('submit',))
@@ -195,7 +199,7 @@ def view_admin(request):
                         request.session.flash("Site is now closed")
                     else:
                         log.add_log(uid_number, "lock", "site was opened")
-                        msgs.append("Site is now open")
+                        request.session.flash("Site is now open")
                 except deform.ValidationFailure, e:
                     request.session.flash('Warning: Could not parse time inputs')
                 except Time_Exception, e:
@@ -207,31 +211,13 @@ def view_admin(request):
                     request.session.flash('Successfully updaed roommate pairs')
                 except deform.ValidationFailure, e:
                     request.session.flash('Warning: Could not parse input')
+                    roommate_form = e
 
-        logs = log.get_logs()
-        rooms = prepare_rooms_for_html(request)
-
-        # STILL NEED TO FINISH ------------------------------------------------
-
-        for user in users:
-            ids.add(user.name)
-            ids.add(user.roommate)
-        for log in logs:
-            ids.add(log.uid_number)
-        if not ids == set():
-            for user in conn.search_uid_numbers(list(ids)):
-                name_map[int(user[0][1]['uidNumber'][0])] = user[0][1]['uid'][0]
-                points_map[int(user[0][1]['uidNumber'][0])] = int(user[0][1].get('housingPoints', [0])[0])
-
-        next_room = DBSession.query(Room).filter(or_(
-            Room.name1 == uid_number, Room.name2 == uid_number)).first()
-        conn.close()
-        return {'name_map': name_map, 'rooms': rooms, 'form': form_render, 'users': users,
-                'points_map': points_map, 'current_rooms_form': current_rooms_form_render,
-                'msgs': msgs, 'locked': site_closed, 'next_room': next_room, 'logs': logs,
+        return {'rooms': rooms, 'form': form.render(), 'users': users,
+                'current_rooms_form': current_rooms_form.render(),
+                'msgs': request.session.pop_flash(), 'locked': site_closed, 'next_room': next_room, 'logs': logs,
                 'time': time_set.render(), 'roommate_renderer': roommate_form.render()}
     else:
-        conn.close()
         return HTTPFound(location=request.route_url('view_main'))
 
 @view_config(route_name='view_admin_edit', renderer='templates/edit.pt')

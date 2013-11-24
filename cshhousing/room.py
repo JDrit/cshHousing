@@ -21,9 +21,6 @@ def signup_for_room(room_number, id1, id2, request):
         return False
     if not roommatePair.are_roommates(id1, id2): # if the users are not roomates
         return False
-    # if the user is already in another room
-    if DBSession.query(Room).filter(or_(Room.occupant1 == id1, Room.occupant2 == id1)).first():
-        return False
     if id1 == id2: # cannot join with yourself
         return False
     if room.single and id2: # can only join single alone
@@ -36,10 +33,18 @@ def signup_for_room(room_number, id1, id2, request):
         user.send_notification(room.occupant2, "You have been kicked from room " + str(room.room_number), request)
         user.send_notification(id1, "You have joined room " + str(room.room_number), request)
         user.send_notification(id2, "You have joined room " + str(room.room_number), request)
+
+        # removes users from previous rooms
+        for room in DBSession.query(Room).filter(or_(Room.occupant1 == id1,
+            Room.occupant2 == id1, Room.occupant1 == id2, Room.occupant2 == id2)):
+            if room.occupant1 == id1 or room.occupant1 == id2:
+                room.occupant1 = None
+            if room.occupant2 == id1 or room.occupant2 == id2:
+                room.occupant2 = None
+
         room.occupant1 = id1
         room.occupant2 = id2
         DBSession.add(room)
-
         return True
     else:
         return False
@@ -58,7 +63,7 @@ def admin_update_room(room_number, id1, id2, locked, single, request):
     DBSession.query(Room).filter(Room.room_number == room_number).update(
             {'occupant1': id1, 'occupant2': id2,
                 'locked': locked, 'single': single,
-                'housing_points': user.get_points()}).first()
+                'housing_points': user.get_points(request, id1, id2, room_number)}).first()
 
 def prepare_rooms_for_html(request):
     """
@@ -97,13 +102,18 @@ def get_room(room_number):
     return DBSession.query(Room).filter(Room.room_number == room_number).first()
 
 def get_valid_rooms():
+    """
+    Gets the list of valid room information needed to display info in the view
+    Returns numbers, numbers_validate
+        numbers: the list of room numbers
+        numbers_validate: list of tuples of (room_number, room.number)
+    """
     numbers = []
     numbers_validate = []
     for room in get_rooms():
         numbers.append((room.number, room.number))
         numers.validate.append(room.number)
     return numbers, numbers_validate
-
 
 def get_users_room(uid_number):
     """

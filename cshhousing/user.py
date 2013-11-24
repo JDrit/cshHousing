@@ -1,6 +1,16 @@
 import ldap_conn
 import request
 import room
+from .models import DBSession, Room, User
+
+def get_user(uid_number):
+    """
+    Gets the User object for the given user id
+    Arguments:
+        uid_number: the uid number to search by
+    Returns the User object or None
+    """
+    return DBSession.query(User).filter(User.uid_number == uid_number).first()
 
 def get_points(request, uid_number1, uid_number = None, room_number = None):
     """
