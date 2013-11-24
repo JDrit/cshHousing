@@ -134,6 +134,7 @@ def view_admin(request):
         logs = log.get_logs()
         rooms = prepare_rooms_for_html(request)
         next_room = room.get_users_room(user.get_users(uid_number(uid_number)))
+        roommates = roommatePair.prepare_roommates_for_html(request)
 
         # forms for the admin panel
         roommate_form = deform.Form(NewRoommate(names, names_validate), buttons=('submit',))
@@ -145,13 +146,13 @@ def view_admin(request):
 
         if request.method == 'POST':
             # delete current room assignments
-            if 'remove_roommate' in [item[0] for item in request.POST.items()]:
-                if roommatePair.remove_pair(int(request.POST.get('roommate_id'))):
+            if request.POST.get('remove_roommate'):
+                if roommatePair.remove_pair(int(request.POST.get('remove_roommate'))):
                     request.session.flash('Successfully removed user\'s roommate')
                 else:
                     request.session.flash('Failed to remove roommate pair')
             # current room was given
-            elif ('__start__', u'current_rooms:sequence') in request.POST.items():
+            elif request.POST.get('__start__') == u'current_rooms:sequence':
                 try:
                     appstruct = current_rooms_form.validate(request.POST.items())
                     for current_room in appstruct['current_rooms']: # new current rooms
@@ -161,7 +162,7 @@ def view_admin(request):
                     request.session.flash('Warning: Could not add current room assignment')
                     current_rooms_form = e
             # settings were given
-            elif ('__start__', u'close_time:mapping') in request.POST.items():
+            elif request.POST.get('__start__') == u'close_time:mapping':
                 try:
                     appstruct = time_set.validate(request.POST.items())
                     ct = appstruct.get('close_time', None)
@@ -215,7 +216,8 @@ def view_admin(request):
         return {'rooms': rooms, 'form': form.render(), 'users': users,
                 'current_rooms_form': current_rooms_form.render(),
                 'msgs': request.session.pop_flash(), 'locked': site_closed, 'next_room': next_room, 'logs': logs,
-                'time': time_set.render(), 'roommate_renderer': roommate_form.render()}
+                'time': time_set.render(), 'roommate_renderer': roommate_form.render(),
+                'roommates': roommates}
     else:
         return HTTPFound(location=request.route_url('view_main'))
 
@@ -295,278 +297,38 @@ def view_main(request):
 @view_config(route_name='view_join1', renderer='templates/join.pt')
 def view_join(request):
     global site_closed
-    numbers_validate = []
-    names_validate = []
-    numbers = []
-    names = []
-    number_to_username = {}
+
     none = 'none'
-    names.append((none, '- None -'))
-    names_validate.append(none)
-    current_room = None # the current room for the user
-    current_room_rm = None # the current room for the roommate
-    room_id = request.matchdict.get('room_number', "")
-    if room_id.isdigit():
-        room_id = int(room_id)
 
     if site_closed:
         return HTTPFound(location=request.route_url('view_main'))
 
-    if ('cancel', u'cancel') in request.POST.items():
+    if request.POST.get('cancel'):
         return HTTPFound(location=request.route_url('view_main'))
 
-
-    active_members = get_active(request)
     uid = request.headers['X-Webauth-User']
-    uid_number = get_uid_number(uid, request)
-    found_room = False
 
-    # if the user is not in the active members list, they are not allowed to join a room
-    for user in active_members:
-        if user[1] == uid:
-            break
-    else:
+    if not user.is_active(uid):
         request.session.flash('Warning: You are not allowed to signup for a room since you are not an active member with on-floor status')
         return HTTPFound(location = request.route_url('view_main'))
 
-    for room in DBSession.query(Room).order_by(Room.number).all():
-        if room_id != "" and room.number == room_id:
-            found_room = True
-            if room.locked:
-                request.session.flash('Warning: Room is locked, you are not allowed to join this room')
-                return HTTPFound(location = request.route_url('view_main'))
+    uid_number = ldap_conn.get_uid_number(uid, request)
+    room_numbers, numbers_validate = room.get_valid_rooms()
+    names, names_validate = user.get_valid_roommates(request.headers['X-Webauth-User'])
+    names.append((None, '- None -'))
+    names_validate.append(none)
+    admin = user.is_admin(uid)
 
-        if not room.locked:
-            numbers_validate.append(room.number)
-            numbers.append((room.number, room.number))
-        if room.name1 == uid_number: # can't join room if already in one
-            current_room = room.number
-        if room.name2 == uid_number:
-            current_room = room.number
-    if room_id != "" and found_room == False:
-        request.session.flash('Warning: Room does not exist')
-        return HTTPFound(location = request.route_url('view_main'))
-    if room_id == "":
-        room_id = numbers_validate[0]
+    form = deform.Form(JoinSchema(room_numbers, numbers_validate, names, names_validate),
+            buttons=('submit', 'cancel'))
 
-    admin = isEBoard(uid, request)
-    if not current_room == None:
-        request.session.flash('Warning: You are already in a room ' + str(current_room) + '. Leave that room before joining another')
-        return HTTPFound(location=request.route_url('view_main'))
-
-    for pair in active_members: # the dats used to validate users to join room
-        if not pair[1] == uid:
-            names.append((pair[0], pair[2] + " - " + pair[1]))
-            names_validate.append(pair[0])
-            number_to_username[pair[0]] = pair[1]
-
-    class Schema(colander.Schema):
-        roomNumber = colander.SchemaNode(
-                colander.Integer(),
-                title = 'Room number',
-                widget = ChosenSingleWidget(values=numbers),
-                validator = colander.OneOf(numbers_validate),
-                missing = None,
-                default = room_id)
-        partnerName = colander.SchemaNode(
-                colander.String(),
-                title='Roommate\'s name',
-                widget=ChosenSingleWidget(values=names),
-                validator=colander.OneOf(names_validate),
-                missing=None,
-                default = none)
-
-    schema = Schema()
-    form = deform.Form(schema, buttons=('submit', 'cancel'))
-
-    if  ('submit', u'submit') in request.POST.items():
+    if request.POST.get('submit'):
         try:
             appstruct = form.validate(request.POST.items())
-            join_room = DBSession.query(Room).filter_by(number=appstruct['roomNumber']).first()
-            if join_room.locked:
-                return {'form': 'Room is locked'}
-            elif not current_room == None: # do not allow users who are already registered
-                request.session.flash('Warning: You are already in room ' + str(current_room) + '. Leave that room before joining another')
-                return HTTPFound(location=request.route_url('view_main'))
-            elif appstruct['partnerName'].isdigit() and uid_number == int(appstruct['partnerName']):
-                request.session.flash('Warning: Why the fuck do you think you could join a room yourself')
-                return HTTPFound(location=request.route_url('view_main'))
-            elif appstruct.get('partnerName', None) == None or appstruct.get('roomNumber', None) == None:
-                return HTTPFound(location=request.route_url('view_main'))
+            if room.signup_for_room(int(appstruct['room_number']), uid_number, int(appstuct['roommate']), request):
+                request.session.flash('Successfully joined room')
             else:
-                points = []
-                if not appstruct['partnerName'] == none:
-                    points.append(appstruct['partnerName'])
-                points.append(uid_number) # the current user's uidNumber
-                results = get_points_uidNumbers(points, request)
-                test_points = sum(results.values())
-                print 'test_points', test_points
-                # squatting points
-                squating = DBSession.query(User).filter(or_(
-                    and_(User.name == (appstruct['partnerName'] if appstruct['partnerName'] != none else None),
-                        User.number == appstruct['roomNumber']),
-                    and_(User.name == uid_number, User.number == appstruct['roomNumber']))).first()
-                if squating:
-                    test_points += .5
-
-                if join_room.single and appstruct['partnerName'] != none: # room is single and trying to join with roommate
-                    request.session.flash("Warning: Cannot join the single with a roommate")
-                    return HTTPFound(location=request.route_url('view_main'))
-
-                partner = int(appstruct['partnerName'] if appstruct['partnerName'] != none else -1)
-                p_room = DBSession.query(Room).filter(or_(Room.name1 == partner, Room.name2 == partner)).first()
-                p_user = DBSession.query(User).filter_by(name = partner).first()
-                print 'test: ', p_user
-                if not p_user or p_user.roommate != uid_number:
-                    request.session.flash('Warning: You are not allowed to control this person\'s housing status')
-                    return HTTPFound(location=request.route_url('view_main'))
-
-                # roommate is already in another room
-                if p_room and p_room.number != int(appstruct['roomNumber']):
-
-                    # if the user does not have permission to pull the roommate out of their current room
-                    if p_user and p_user.roommate != uid_number and p_user.roommate != None:
-                        request.session.flash('Warning: Roomate is already in another room')
-                        return HTTPFound(location=request.route_url('view_main'))
-
-                    # else the user has permission to pull the user out of their current room
-                    elif p_user:
-                        new_points = sum(get_points_uidNumbers([room.name1, room.name2], request).values())
-                        if p_room.name1 == partner:
-                            DBSession.query(Room).filter_by(name1 = partner).update({'name1': None, 'points': new_points})
-                        else:
-                            DBSession.query(Room).filter_by(name2 = partner).update({'name2': None, 'points': new_points})
-                    else:
-                        request.session.flash('Warning: Roomate is already in another room')
-                        return HTTPFound(location=request.route_url('view_main'))
-
-                else:
-                    # if the current user is allowed to change the other user's room status
-                    if p_user and p_user.roommate != uid_number and p_user.roommate != None:
-                        request.session.flash("Warning: The roommate you tried " +
-                                "to join with does not allow you to control their housing status. Please tell them to select you as a roommate")
-                        return HTTPFound(location=request.route_url('view_main'))
-
-                # only one person in room and joining alone
-                if (join_room.name1 == None or join_room.name2 == None) and appstruct['partnerName'] == none and not join_room.single:
-
-                    if join_room.name1 == None:
-                        join_room.name1 = uid_number
-                    else:
-                        join_room.name2 = uid_number
-                    join_room.points += results[uid_number]
-                    if squating and join_room.points == int(join_room.points):
-                        join_room.points += .5
-                    DBSession.add(join_room)
-                    send_notification(uid, "You have joined room " + str(appstruct['roomNumber']), request)
-                    add_log(uid_number, "join", "room " + str(appstruct['roomNumber']))
-                elif join_room.points < test_points: # if new people beat out current ocupents
-                    if appstruct['partnerName'] == none: # user joined alone and kicked current members
-                        # old residents were kicked
-                        if not join_room.name1 == None or not join_room.name2 == None:
-                            users = str(join_room.name1) if not join_room.name1 == None else ""
-                            if users == "":
-                                users = str(join_room.name2)
-                            else:
-                                users += " & " + str(join_room.name2)
-                            add_log(uid_number, "join", "user joined room " + str(appstruct['roomNumber']) + ", kicking " + users)
-                            uid1 = None
-                            uid2 = None
-                            for name in names:
-                                if names[0] == str(room.name1):
-                                    uid1 = number_to_username[name[0]] #names[1][names[1].index('-') + 1:]
-                                elif names[0] == str(room.name2):
-                                    uid2 = number_to_username[name[0]] #names[1][names[1].index('-') + 1:]
-                                if uid != None and uid != None:
-                                    break
-                            if uid1 != None:
-                                send_notification(uid1, "You have been kicked from room " + str(appstruct['roomNumber']), request)
-                            if uid2 != None:
-                                send_notification(uid2, "You have been kicked from room " + str(appstruct['roomNumber']), request)
-                        else:
-                           add_log(uid_number, "join", "user joined room alone")
-                    else: # user joined with a roommate
-                        if not join_room.name1 == None or not join_room.name2 == None:
-                            partnerString = kickString1 = kickString2 = None
-                            users = str(join_room.name1) if not join_room.name1 == None else ""
-                            if users == "":
-                                users = str(join_room.name2)
-                            else:
-                                users += " & " + str(join_room.name2)
-                            for name in names:
-                                if name[0] == str(appstruct['partnerName']):
-                                    partnerString = number_to_username[name[0]] #name[1][name[1].index('-') + 1:].strip()
-                                if name[0] == str(join_room.name1):
-                                    kickString1 = number_to_username[name[0]] #name[1][name[1].index('-') + 1:].strip()
-                                if name[0] == str(join_room.name2):
-                                    kickString2 = number_to_username[name[0]] #name[1][name[1].index('-') + 1:].strip()
-
-                            if partnerString and kickString1:
-                                send_notification(kickString1, "You have been kicked from room " + str(appstruct['roomNumber']) +
-                                    " by " + uid + " and " + partnerString, request)
-                            if partnerString and kickString2:
-                                send_notification(kickString2, "You have been kicked from room " + str(appstruct['roomNumber']) +
-                                    " by " + uid + " and " + partnerString, request)
-
-
-                            send_notification(partnerString, "You have joined room " + str(appstruct['roomNumber']) + " with " + uid, request)
-
-                            if not kickString1 == None and not join_room.name1 == None:
-                                kickString = kickString1 + "(" + str(join_room.name1) + ")"
-                            elif not join_room.name1 == None:
-                                kickString = str(join_room.name1)
-                            else:
-                                kickString = ""
-
-                            if kickString == "":
-                                if not kickString2 == None and not join_room.name2 == None:
-                                    kickString = kickString2 + "(" + str(join_room.name2) + ")"
-                                elif not join_room.name2 == None:
-                                    kickString = str(join_room.name2)
-                            else:
-                                if not kickString2 == None and not join_room.name2 == None:
-                                    kickString += " & " + kickString2 + "(" + str(join_room.name2) + ")"
-                                elif not join_room.name2 == None:
-                                    kickString += " & " + str(join_room.name2)
-
-                            if not partnerString == None:
-                                partnerString = partnerString + "(" + str(appstruct['partnerName']) + ")"
-                            else:
-                                partnerString = appstruct['partnerName']
-                            add_log(uid_number, "join",
-                                "room " + str(appstruct['roomNumber']) + " with " +
-                                partnerString + ", kicking " + kickString)
-                        else: # joined with partner and did not kick anyone
-                            for name in names:
-                                if name[0] == str(appstruct['partnerName']):
-                                    partner = int(appstruct['partnerName'])
-                                    room = DBSession.query(Room).filter(or_(Room.name1 == partner, Room.name2 == partner)).first()
-                                    if room: # updates the points for the roommate's old room
-                                        if room.name1 == partner:
-                                            room.name1 = None
-                                        else:
-                                            room.name2 = None
-                                        #room.points = sum(get_points_uidNumbers([room.name1, room.name2], request).values())
-
-                                    send_notification(number_to_username[name[0]],
-                                            "Joined room " + str(appstruct['roomNumber']) + " with " + uid, request)
-                                    add_log(uid_number, "join", "room " + str(appstruct['roomNumber']) + " with " +
-                                            name[1] + "(" + str(appstruct['partnerName']) + ")")
-                                    break
-                            else:
-                                DBSession.add(Log(uid_number, "join", "room " + str(appstruct['roomNumber']) + " with " +
-                                    str(appstruct['partnerName'])))
-
-                    DBSession.query(Room).filter_by(number=appstruct['roomNumber']).update(
-                            {"name2": int(appstruct['partnerName'])
-                                if not appstruct['partnerName'] == none else None,
-                                "name1": uid_number, "points": test_points})
-                    transaction.commit()
-                else:
-                    request.session.flash('Warning: You do not have enough housing points')
-                    return HTTPFound(location=request.route_url('view_main'))
-            request.session.flash('Successfully joined room ' + str(appstruct['roomNumber']))
-            return HTTPFound(location=request.route_url('view_main'))
+                return {'form': 'Failed to join room'}
         except deform.ValidationFailure, e:
             return {'form': e.render(), 'admin': admin}
     else:

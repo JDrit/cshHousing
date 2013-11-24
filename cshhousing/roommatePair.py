@@ -45,6 +45,16 @@ def add_roommate_pair(uid_number1, uid_number2):
 
     DBSession.add(RoommatePair(uid_number1, uid_number2))
 
+def get_roommates():
+    return DBSession.query(RoommatePair).all()
+
+def prepare_roommates_for_html(request):
+    rooms = get_roommates()
+    for room in rooms:
+        setattr(room, 'name1', ldap_conn.get_username(room.roomate1_id, request))
+        setattr(room, 'name2', ldap_conn.get_username(room.roomate2_id, request))
+    return rooms
+
 def get_roommate(uid_number):
     """
     Gets the roommate for the given user.

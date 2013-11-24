@@ -71,18 +71,16 @@
                  <table class="table table-hover table-striped">
                    <tr>
 	             <td>Room Number:</td>
-	             <td>Name 1:</td>
-		     <td>Name 2:</td>
+	             <td>Roommate 1:</td>
+		     <td>Roommate 2:</td>
 		     <td>Total Points:</td>
-		     <td>Locked:</td>
 		     <td></td>
 	           </tr>
-	           <tr tal:repeat="room rooms">
+	            <tr tal:repeat="room rooms" tal:attributes="class 'danger' if room.locked else None">
 		     <td>${room.number}</td>
 		     <td>${room.name1}</td>
 		     <td>${room.name2}</td>
 		     <td>${room.points}</td>
-		     <td>${room.locked}</td>
 		     <td>
                 <a href="/edit/${room.number}">
                     <button type="button" class="btn btn-default" action="">Edit</button>
@@ -156,17 +154,17 @@
                   <td>Roommate</td>
                   <td>Action</td>
               </tr>
-          <tal:block repeat="user users">
-              <tr tal:condition="user.roommate">
+          <tal:block repeat="pair roommates">
+              <tr>
                   <td>
-                      ${name_map.get(user.name, user.name)}
+                      ${pair.name1}
                   </td>
                   <td>
-                      ${name_map.get(user.roommate, user.roommate)}
+                      ${pair.name2}
                   </td>
                   <td>
                       <form role="form" action="" method="POST">
-                          <button type="submit" name="remove_roommate" value="${user.name}" class="btn btn-danger">Remove Roommate</button>
+                          <button type="submit" name="remove_roommate" value="${pair.id}" class="btn btn-danger">Remove Roommate</button>
                       </form>
                   </td>  
                 </tr>

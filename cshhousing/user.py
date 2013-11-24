@@ -56,8 +56,8 @@ def send_notification(uid_number, message, request):
         request: the http request object used to get the setting informations
     Returns True if the notification was sent, False otherwise
     """
-    if DBSession.query(User.send_notifications).filter(User.uid_number == uid_number).first():
-        useraname = ldap.get_usernam
+    results = DBSession.query(User.send_notifications).filter(User.uid_number == uid_number).first()
+    if results and results[0]:
         username = ldap.get_username(uid_number)
         requests.get("https://www.csh.rit.edu/~kdolan/notify/apiDridge.php?username=" +
                 username + "&notification=" +
@@ -112,6 +112,19 @@ def get_valid_users(request):
     Returns a list of users, each one a tuple (uid number, uid, common name)
     """
     return ldap_conn.get_active(request)
+
+def is_active(uid, request):
+    """
+    Determine if the user with the given username is an active user
+    Arguments:
+        uid: the username of the user
+        request: the HTTP request object
+    Returns True if the user is active, False otherwise
+    """
+    for user in ldap_conn.get_active(request):
+        if user[1] == uid:
+            return True
+    return False
 
 def get_valid_roommates(uid):
     """

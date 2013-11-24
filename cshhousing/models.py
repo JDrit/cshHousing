@@ -31,7 +31,8 @@ class Room(Base):
         self.is_single = single
 
     def __str__(self):
-        return str(self.room_number) + ", " + str(self.occupant_id2) + ", " + str(self.occupant_id1)
+        return (str(self.room_number) + ", " + str(self.occupant_id2) + ", " +
+                str(self.occupant_id1) + "\n\tlocked: " + str(self.is_locked) + "\n\tsingle: " + str(self.is_single))
 
 class User(Base):
     """
@@ -39,7 +40,6 @@ class User(Base):
     name: the uid number of the user the information is about
     number: the current room number of that the user is in
     send: if the website should send notifications to the user
-    roommate: another user that is allowed to control the user's housing status
     """
     __tablename__ = 'users'
     uid_number = Column(Integer, primary_key = True)
@@ -69,6 +69,9 @@ class RoommatePair(Base):
     def __init__(self, id1, id2):
         self.roommate1_id = id1
         self.roommate2_id = id2
+
+    def __str__(self):
+        return str(self.id) + ", " + str(self.roommate1_id) + ", " + str(self.roommate2_id)
 
 class Log(Base):
     """

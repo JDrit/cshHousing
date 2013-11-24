@@ -144,3 +144,22 @@ class AdminRoomEdit(colander.Schema):
             default = room.single,
             missing = None)
 
+class JoinSchema(colander.Schema):
+    room_number = roommate = None
+
+    def __init__(self, numbers, numbers_validate, names, names_validate):
+        self.room_number = colander.SchemaNode(
+                colander.Integer(),
+                title = 'Room number',
+                widget = ChosenSingleWidget(values=numbers),
+                validator = colander.OneOf(numbers_validate),
+                missing = None,
+                default = room_id)
+        self.roommate = colander.SchemaNode(
+                colander.String(),
+                title='Roommate\'s name',
+                widget=ChosenSingleWidget(values=names),
+                validator=colander.OneOf(names_validate),
+                missing=None,
+                default = none)
+

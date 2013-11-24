@@ -41,6 +41,7 @@ def signup_for_room(room_number, id1, id2, request):
                 room.occupant1 = None
             if room.occupant2 == id1 or room.occupant2 == id2:
                 room.occupant2 = None
+            DBSession.add(room)
 
         room.occupant1 = id1
         room.occupant2 = id2
@@ -67,46 +68,23 @@ def admin_update_room(room_number, id1, id2, locked, single, request):
         return False
 
     room = get_room(room_number)
-    if room.occupant1:
-        send_notification(room.occupant1, "An admin has removed you from room " +
-                str(room.room_number), request)
-    if room.occupant2:
-        send_notification(room.occupant2, "An admin has removed you from room " +
-                str(room.room_number), request)
-    if id1:
-        send_notification(id1, "An admin has moved you to room " +
-                str(room.room_number), request)
-    if id2:
-        send_notification(id2, "An admin has moved you to room " +
-                str(room.room_number), request)
+    send_notification(room.occupant1, "An admin has removed you from room " +
+            str(room.room_number), request)
+    send_notification(room.occupant2, "An admin has removed you from room " +
+            str(room.room_number), request)
+    send_notification(id1, "An admin has moved you to room " +
+            str(room.room_number), request)
+    send_notification(id2, "An admin has moved you to room " +
+            str(room.room_number), request)
 
-    # removes the user from their old rooms
-    old_room1 = get_users_room(id1)
-    old_room2 = None
-    no_query = False
-
-    if old_room1 and old_room1.occupant1 == id1:
-        old_room1.occupant1 = None
-        if old_room1.occupant2 == id2:
-            old_room1.occupant2 = None
-            no_query = True
-    elif old_room1:
-        old_room1.occupant2 = None
-        if old_room1.occupant1 == id2:
-            old_room1.occupant1 = None
-            no_query = True
-
-    if not no_query:
-        old_room2 = get_users_room(id2)
-        if old_room2 and old_room2.occupant1 == id1:
-            old_room2.occupant1 = None
-        elif old_room2:
-            old_room.occupant2 = None
-
-    if old_room1:
-        DBSession.add(old_room1)
-    if old_room2:
-        DBSession.add(old_room2)
+    # removes users from previous rooms
+    for room in DBSession.query(Room).filter(or_(Room.occupant1 == id1,
+        Room.occupant2 == id1, Room.occupant1 == id2, Room.occupant2 == id2)):
+        if room.occupant1 == id1 or room.occupant1 == id2:
+            room.occupant1 = None
+        if room.occupant2 == id1 or room.occupant2 == id2:
+            room.occupant2 = None
+        DBSession.add(room)
 
     room.occupant1 = id1
     room.occupant2 = id2
