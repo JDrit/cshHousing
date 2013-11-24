@@ -135,7 +135,6 @@ def view_admin(request):
         rooms = prepare_rooms_for_html(request)
         next_room = room.get_users_room(user.get_users(uid_number(uid_number)))
 
-
         # forms for the admin panel
         roommate_form = deform.Form(NewRoommate(names, names_validate), buttons=('submit',))
         form = deform.Form(NewRoomsSchema(room_numbers), buttons=('submit',))
@@ -223,181 +222,33 @@ def view_admin(request):
 @view_config(route_name='view_admin_edit', renderer='templates/edit.pt')
 def view_admin_edit(request):
     global site_closed
-    numbers_validate = []
-    names_validate = []
-    numbers = []
-    names = []
-    number_to_username = {} # dictionary used to convert uid number to username
+    room_number = int(request.matchdict['room_number'])
+    uid_number = ldap_conn.get_uid_number(request.headers['X-Webauth-User'], request)
+    next_room = user.get_users_room(uid_number)
+    names, names_validate = user.get_valid_roommates(request.headers['X-Webauth-User'])
     empty = 'empty'
-    next_room = None
-    uid_number = get_uid_number(request.headers['X-Webauth-User'], request)
-    # any input that is not an actual number
-    if not request.matchdict['room_number'].isdigit():
-        request.session.flash("Warning: STOP FUCKING WITH MY SYSTEM")
-        return HTTPFound(location = request.route_url('view_admin'))
+    names.append((empty, '- Empty -'))
+    names_validate.append(empty)
+    form = deform.FormAdmin(AdminRoomEdit(names, names_validate), buttons=('submit', 'cancel'))
 
-    if isEBoard(request.headers['X-Webauth-User'], request):
-
+    if user.is_admin(request.headers['X-Webauth-User']):
         if ('cancel', u'cancel') in request.POST.items():
             return HTTPFound(location=request.route_url('view_admin'))
-        found_room = False
-        rooms = DBSession.query(Room).order_by(Room.number).all()
-        for r in rooms:
-            if str(r.number) == request.matchdict['room_number']:
-                room = r
-                found_room = True
-            if uid_number == r.name1 or uid_number == r.name2:
-                next_room = r
-        if found_room != True:
-            request.session.flash("Warning: Invalid room number")
-            return HTTPFound(location=request.route_url('view_admin'))
-
-        names.append((empty, '- Empty -'))
-        names_validate.append(empty)
-        for pair in get_active(request):
-            names.append((pair[0], pair[2] + " - " + pair[1]))
-            names_validate.append(pair[0])
-            number_to_username[pair[0]] = pair[1]
-
-        class Schema(colander.Schema):
-            name1 = colander.SchemaNode(
-		    	colander.String(),
-			    title = 'Roommate #1',
-    			widget = ChosenSingleWidget(values=names),
-	    		validator = colander.OneOf(names_validate),
-                default = room.name1 or empty,
-                missing = None)
-            name2 = colander.SchemaNode(
-	    		colander.String(),
-		    	title = 'Roommate #2',
-			    widget = ChosenSingleWidget(values=names),
-    			validator = colander.OneOf(names_validate),
-                default = room.name2 or empty,
-                missing = None)
-            locked = colander.SchemaNode(
-			    colander.Bool(),
-    			title = 'Locked',
-	    		widget = deform.widget.CheckboxWidget(),
-                default = room.locked,
-                missing = None)
-            single = colander.SchemaNode(
-                colander.Bool(),
-                title = 'Single',
-                widget = deform.widget.CheckboxWidget(),
-                default = room.single,
-                missing = None)
-
-        schema = Schema()
-        form = deform.Form(schema, buttons=('submit', 'cancel'))
-        if ('submit', u'submit') in request.POST.items():
+        elif ('submit', u'submit') in request.POST.items():
             try:
                 appstruct = form.validate(request.POST.items())
-                if appstruct.get('name1', None) == None or appstruct.get('name2', None) == None or appstruct.get('locked', None) == None or appstruct.get('single', None) == None:
-                        return HTTPFound(location=request.route_url('view_admin'))
-                name1 = appstruct['name1'] if not appstruct['name1'] == empty else None
-                name2 = appstruct['name2'] if not appstruct['name2'] == empty else None
-                if name1 == name2 and not name1 == None and not name2 == None:
-                    request.session.flash('Warning: Names cannot be the same')
-                    return HTTPFound(location=request.route_url('view_admin'))
+                uid_number1 = appstruct.get('uid_number1') if not appstruct.get('uid_number1') == empty else None
+                uid_number2 = appstruct.get('uid_number2') if not appstruct.get('uid_number2') == empty else None
 
-                if name1 and name2 and appstruct['single']: # can't add 2 people to single room
-                    request.session.flash('Warning: cannot add two people to a single room')
-                    return HTTPFound(location = request.route_url('view_admin'))
-
-                realName1 = realName2 = oldRealName1 = oldRealName2 = None # users' uids for log
-                if not name1 == None or not name1 == None:
-                    for name in names:
-                        if name[0] == name1:
-                            realName1 = number_to_username[name[0]]
-                        if name[0] == name2:
-                            realName2 = number_to_username[name[0]]
-                        if name[0] == str(room.name1):
-                            oldRealName1 = number_to_username[name[0]]
-                        if name[0] == str(room.name2):
-                            oldRealName2 = number_to_username[name[0]]
-
-                points = sum(get_points_uidNumbers([name1, name2], request).values())
-                if DBSession.query(User).filter(or_( # squatting points
-                    and_(User.name == name1, User.number == request.matchdict['room_number']),
-                    and_(User.name == name2, User.number == request.matchdict['room_number'])
-                    )).first():
-                    points += .5
-
-                # removes the new users from other rooms, if they were in a different room
-                to_remove = [int(name1 or -1), int(name2 or -1)]
-                old_rooms = [room for room in rooms if room.name1 == int(name1 or 0) or room.name1 == int(name2 or 0) or room.name2 == int(name1 or 0) or room.name2 == int(name2 or 0)]
-                for room in old_rooms:
-                    if room.number == int(request.matchdict['room_number']):
-                        continue
-                    if room.name1 in to_remove:
-                        room.name1 = None
-                    if room.name2 in to_remove:
-                        room.name2 = None
-                    room.points = sum(get_points_uidNumbers([room.name1, room.name2], request).values())
-
-                    DBSession.add(room)
-
-                # update db
-                DBSession.query(Room).filter_by(number=
-                        request.matchdict['room_number']).update({'name1': name1,
-                            'name2': name2, 'locked': appstruct['locked'],
-                            'points': points, 'single': appstruct['single']})
-                if oldRealName1 != None:
-                    send_notification(oldRealName1,
-                            "You have been removed from room " + str(room.number) +
-                            " by an admin", request)
-                if oldRealName2 != None:
-                    send_notification(oldRealName2,
-                            "You have been removed from room " + str(room.number) +
-                            " by an admin", request)
-                if realName1 != None:
-                    send_notification(realName1, "You have been added to room " +
-                            str(room.number) + " by an admin", request)
-                if realName2 != None:
-                    send_notification(realName2, "You have been added to room " +
-                            str(room.number) + " by an admin", request)
-
-                if not oldRealName1 == None and not room.name1 == None:
-                    oldNameString1 = oldRealName1 + "(" + str(room.name1) + ")"
-                elif not room.name1 == None:
-                    oldNameString1 = str(room.name1)
+                if user.admin_update_room(room_number, uid_number1, uid_number2, appstruct.get('locked'), appstruct.get('single'), request):
+                    request.session.flash("Successfully updated room #" + str(room_number))
                 else:
-                    oldNameString1 = "None"
-                if not oldRealName2 == None and not room.name2 == None:
-                    oldNameString2 = oldRealName2 + "(" + str(room.name2) + ")"
-                elif not room.name2 == None:
-                    oldNameString2 = str(room.name2)
-                else:
-                    oldNameString2 = "None"
-                if not realName1 == None:
-                    realNameString1 = realName1 + "(" + str(name1) + ")"
-                elif not name1 == None:
-                    realNameString1 = str(name1)
-                else:
-                    realNameString1 = "None"
-                if not realName2 == None:
-                    realNameString2 = realName2 + "(" + str(name2) + ")"
-                elif not name2 == None:
-                    realNameString2 = str(name2)
-                else:
-                    realNameString2 = "None"
-                add_log(uid_number, "edit",
-                        str(request.matchdict['room_number']) + " from " +
-                        oldNameString1 + ", " + oldNameString2 + " locked: " +
-                        str(room.locked) +  " to " +
-                        realNameString1 + ", " + realNameString2 + " locked: " +
-                        str(appstruct['locked']))
-                transaction.commit()
-                request.session.flash("Successfully updated room #" +
-                        str(request.matchdict['room_number']))
+                    request.session.flash("Failed to update room #" + str(room_number))
                 return HTTPFound(location=request.route_url('view_admin'))
             except deform.ValidationFailure, e:
-                return {'locked': site_closed, 'next_room': next_room, 'form': e.render(),
-                        'number': request.matchdict['room_number']}
+                return {'locked': site_closed, 'next_room': next_room, 'form': e.render(), 'number': room_number}
         else: # regular viewing
-            return {'locked': site_closed, 'next_room': next_room, 'form': form.render(),
-                    'number': request.matchdict['room_number']}
-
+            return {'locked': site_closed, 'next_room': next_room, 'form': form.render(), 'number': room_number}
     else: # invalid permissions
         return HTTPFound(location=request.route_url('view_main'))
 

@@ -113,3 +113,34 @@ class TimeSchema(colander.Schema):
                 default = close_time,
                 description = "Auto closes the site at a given time")
 
+class AdminRoomEdit(colander.Schema):
+    uid_number1 = uid_number2 = locked = single = None
+
+    def __init__(self, names, names_validate):
+        uid_number1 = colander.SchemaNode(
+            colander.String(),
+            title = 'Roommate #1',
+            widget = ChosenSingleWidget(values=names),
+            validator = colander.OneOf(names_validate),
+            default = room.name1 or empty,
+            missing = None)
+        uid_number2 = colander.SchemaNode(
+            colander.String(),
+            title = 'Roommate #2',
+            widget = ChosenSingleWidget(values=names),
+            validator = colander.OneOf(names_validate),
+            default = room.name2 or empty,
+            missing = None)
+        locked = colander.SchemaNode(
+            colander.Bool(),
+            title = 'Locked',
+            widget = deform.widget.CheckboxWidget(),
+            default = room.locked,
+            missing = None)
+        single = colander.SchemaNode(
+            colander.Bool(),
+            title = 'Single',
+            widget = deform.widget.CheckboxWidget(),
+            default = room.single,
+            missing = None)
+

@@ -57,6 +57,8 @@ def send_notification(uid_number, message, request):
     Returns True if the notification was sent, False otherwise
     """
     if DBSession.query(User.send_notifications).filter(User.uid_number == uid_number).first():
+        useraname = ldap.get_usernam
+        username = ldap.get_username(uid_number)
         requests.get("https://www.csh.rit.edu/~kdolan/notify/apiDridge.php?username=" +
                 username + "&notification=" +
                 message.replace(" ", "&") + "&apiKey=" +

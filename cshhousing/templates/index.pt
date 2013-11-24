@@ -234,9 +234,6 @@
 	        <td>
               Total Points
             </td>
-	        <td>
-              Locked:
-            </td>
           </tr>
 	      <tr tal:repeat="room rooms" tal:attributes="class 'danger' if room.locked else None">
             
@@ -255,9 +252,6 @@
             </td>
 		    <td>
               ${room.points}
-            </td>
-		    <td>
-              ${room.locked}
             </td>
           </tr>
         </table>
